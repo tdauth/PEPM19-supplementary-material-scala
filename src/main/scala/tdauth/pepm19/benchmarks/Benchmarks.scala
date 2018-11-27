@@ -5,11 +5,7 @@ import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
 
-import tdauth.pepm19.core.FP
-import tdauth.pepm19.core.cas.CCAS
-import tdauth.pepm19.core.mvar.CMVar
-import tdauth.pepm19.core.stm.CSTM
-import tdauth.pepm19.{Executor, JavaExecutor}
+import tdauth.pepm19.{CSTM, _}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}

@@ -2,12 +2,9 @@ package tdauth.pepm19.programtransformations
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.concurrent.SyncVar
+import com.twitter.util.{Await, Promise, Return, Try}
 
-import com.twitter.util.Await
-import com.twitter.util.Promise
-import com.twitter.util.Return
-import com.twitter.util.Try
+import scala.concurrent.SyncVar
 
 /**
   * When `become` is called two times, all callbacks are moved into `p`.

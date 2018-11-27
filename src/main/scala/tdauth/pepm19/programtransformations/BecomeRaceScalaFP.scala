@@ -3,11 +3,8 @@ package tdauth.pepm19.programtransformations
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Promise
-import scala.concurrent.SyncVar
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Promise, SyncVar}
 import scala.util.Try
 
 /**

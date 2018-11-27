@@ -1,13 +1,9 @@
-package tdauth.pepm19.core
+package tdauth.pepm19
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import tdauth.pepm19.{Executor, PredicateNotFulfilled}
-
 import scala.util.control.NonFatal
-import scala.util.Try
-import scala.util.Success
-import scala.util.Failure
+import scala.util.{Failure, Success, Try}
 
 /**
   * Combines the functionality of futures and promises and relies on some abstract core methods.
@@ -88,16 +84,15 @@ trait FP[T] extends Core[T] {
     * The same is done in Scala FP.
     */
   def orAlt(other: FP[T]): FP[T] =
-    transformWith(
-      t =>
-        if (t.isSuccess) this
-        else
-          other.transform(tt =>
-            if (tt.isSuccess) {
-              tt.get
-            } else {
-              t.get
-          }))
+    transformWith(t =>
+      if (t.isSuccess) { this } else {
+        other.transform(tt =>
+          if (tt.isSuccess) {
+            tt.get
+          } else {
+            t.get
+        })
+    })
 
   def first(other: FP[T]): FP[T] = {
     val p = newFP[T](getExecutor)

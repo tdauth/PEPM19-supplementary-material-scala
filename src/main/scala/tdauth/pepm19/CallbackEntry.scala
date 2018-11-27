@@ -1,4 +1,4 @@
-package tdauth.pepm19.core
+package tdauth.pepm19
 
 import scala.util.Try
 

@@ -1,6 +1,4 @@
-package tdauth.pepm19.core
-
-import tdauth.pepm19._
+package tdauth.pepm19
 
 import scala.annotation.tailrec
 import scala.concurrent.SyncVar
@@ -41,8 +39,7 @@ trait Core[T] {
   }
 
   protected def appendCallback(callbacks: CallbackEntry, c: Callback): CallbackEntry =
-    if (callbacks ne Noop) LinkedCallbackEntry(c, callbacks)
-    else SingleCallbackEntry(c)
+    if (callbacks ne Noop) { LinkedCallbackEntry(c, callbacks) } else { SingleCallbackEntry(c) }
 
   protected def dispatchCallback(v: Try[T], c: Callback): Unit =
     getExecutorC.submit(() => c.apply(v))

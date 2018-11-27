@@ -1,9 +1,6 @@
-package tdauth.pepm19.core.cas
+package tdauth.pepm19
 
 import java.util.concurrent.atomic.AtomicReference
-
-import tdauth.pepm19._
-import tdauth.pepm19.core.{Core, FP, Noop}
 
 import scala.annotation.tailrec
 import scala.util.{Left, Try}
@@ -53,8 +50,9 @@ class CCAS[T](ex: Executor) extends AtomicReference[FP[T]#Value](Right(Noop)) wi
     s match {
       case Left(x) => dispatchCallback(x, c)
       case Right(x) =>
-        if (!compareAndSet(s, Right(appendCallback(x, c))))
+        if (!compareAndSet(s, Right(appendCallback(x, c)))) {
           onCompleteInternal(c)
+        }
     }
   }
 }

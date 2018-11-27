@@ -1,11 +1,7 @@
-package tdauth.pepm19.core.mvar
-
-import tdauth.pepm19._
-import tdauth.pepm19.core.{Core, FP, Noop}
+package tdauth.pepm19
 
 import scala.concurrent.SyncVar
-import scala.util.Left
-import scala.util.Try
+import scala.util.{Left, Try}
 
 class CMVar[T](ex: Executor) extends SyncVar[FP[T]#Value] with FP[T] {
   put(Right(Noop))

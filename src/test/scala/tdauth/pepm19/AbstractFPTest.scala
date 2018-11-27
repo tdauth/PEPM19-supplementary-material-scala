@@ -2,8 +2,6 @@ package tdauth.pepm19
 
 import java.util.concurrent.Executors
 
-import tdauth.pepm19.core.FP
-
 import scala.collection.immutable.List
 import scala.concurrent.SyncVar
 import scala.util.Success

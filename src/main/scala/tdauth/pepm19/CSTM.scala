@@ -1,7 +1,4 @@
-package tdauth.pepm19.core.stm
-
-import tdauth.pepm19._
-import tdauth.pepm19.core.{Core, FP, Noop}
+package tdauth.pepm19
 
 import scala.concurrent.stm._
 import scala.util.Try
