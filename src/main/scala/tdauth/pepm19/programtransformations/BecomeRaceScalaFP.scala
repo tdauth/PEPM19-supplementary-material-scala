@@ -54,7 +54,6 @@ object BecomeRaceScalaFP extends App {
   p0.asInstanceOf[Promise[Int]].tryCompleteWith(p2.future)
 
   // Now start a race! Does only work when completing p2, since there is only a link from p1 to p0.
-  //p1.trySuccess(1)
   p2.trySuccess(2)
 
   s.get

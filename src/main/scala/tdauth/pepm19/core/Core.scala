@@ -2,6 +2,7 @@ package tdauth.pepm19.core
 
 import tdauth.pepm19._
 
+import scala.annotation.tailrec
 import scala.concurrent.SyncVar
 import scala.util.Try
 
@@ -10,7 +11,7 @@ import scala.util.Try
   */
 trait Core[T] {
 
-  type Callback = (Try[T]) => Unit
+  type Callback = Try[T] => Unit
 
   type Value = Either[Try[T], CallbackEntry]
 
@@ -43,41 +44,16 @@ trait Core[T] {
     if (callbacks ne Noop) LinkedCallbackEntry(c, callbacks)
     else SingleCallbackEntry(c)
 
-  protected def appendCallbacks(callbacks: CallbackEntry, appendedCallbacks: CallbackEntry): CallbackEntry =
-    if (callbacks ne Noop) { ParentCallbackEntry(appendedCallbacks, callbacks) } else {
-      appendedCallbacks
-    }
-
   protected def dispatchCallback(v: Try[T], c: Callback): Unit =
     getExecutorC.submit(() => c.apply(v))
 
   /**
-    * Dispatches all callbacks together at once to the executor.
-    */
-  protected def dispatchCallbacks(v: Try[T], callbacks: CallbackEntry): Unit =
-    if (callbacks ne Noop)
-      getExecutorC.submit(() => applyCallbacks(v, callbacks))
-
-  protected final def applyCallbacks(v: Try[T], callbackEntry: CallbackEntry) {
-    callbackEntry match {
-      case LinkedCallbackEntry(_, prev) => {
-        callbackEntry.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v)
-        applyCallbacks(v, prev)
-      }
-      case SingleCallbackEntry(_) =>
-        callbackEntry.asInstanceOf[SingleCallbackEntry[T]].c.apply(v)
-      case ParentCallbackEntry(left, right) => {
-        applyCallbacks(v, left)
-        applyCallbacks(v, right)
-      }
-      case Noop =>
-    }
-  }
-
-  /**
     * Dispatches each callback separately to the executor.
+    * This behaviour is intended since in Haskell we use one `forkIO` for each callback call.
+    * In Scala we have underlying executor threads instead and do not use one thread per callback call but at least
+    * we can prevent that all callbacks are always called together in the same executor thread.
     */
-  protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
+  @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
     callbacks match {
       case LinkedCallbackEntry(_, prev) => {
         getExecutorC.submit(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v))
@@ -85,10 +61,6 @@ trait Core[T] {
       }
       case SingleCallbackEntry(_) =>
         getExecutorC.submit(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c.apply(v))
-      case ParentCallbackEntry(left, right) => {
-        dispatchCallbacksOneAtATime(v, left)
-        dispatchCallbacksOneAtATime(v, right)
-      }
       case Noop =>
     }
   }
@@ -96,7 +68,7 @@ trait Core[T] {
   /**
     * This version is much simpler than the CompletionLatch from Scala FP's implementation.
     */
-  private final class CompletionSyncVar[T] extends SyncVar[Try[T]] with (Try[T] => Unit) {
+  private final class CompletionSyncVar[T] extends SyncVar[Try[T]] with ((Try[T]) => Unit) {
     override def apply(value: Try[T]): Unit = put(value)
   }
 }
