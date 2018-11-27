@@ -1,6 +1,6 @@
-package tdauth.futuresandpromises.core
+package tdauth.pepm19.core
 
-import tdauth.futuresandpromises._
+import tdauth.pepm19._
 
 import scala.concurrent.SyncVar
 import scala.util.Try

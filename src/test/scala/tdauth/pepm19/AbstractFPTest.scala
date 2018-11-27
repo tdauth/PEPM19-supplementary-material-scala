@@ -1,6 +1,6 @@
-package tdauth.futuresandpromises
+package tdauth.pepm19
 
-import tdauth.futuresandpromises.core.FP
+import tdauth.pepm19.core.FP
 
 import scala.collection.immutable.List
 import scala.concurrent.SyncVar

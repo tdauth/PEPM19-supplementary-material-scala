@@ -1,4 +1,4 @@
-package tdauth.futuresandpromises
+package tdauth.pepm19
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers

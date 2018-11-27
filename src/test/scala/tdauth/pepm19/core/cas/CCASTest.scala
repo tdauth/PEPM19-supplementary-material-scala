@@ -1,9 +1,9 @@
-package tdauth.futuresandpromises.core.cas
+package tdauth.pepm19.core.cas
 
 import java.util.concurrent.Executors
 
-import tdauth.futuresandpromises.{AbstractFPTest, JavaExecutor}
-import tdauth.futuresandpromises.core.FP
+import tdauth.pepm19.{AbstractFPTest, JavaExecutor}
+import tdauth.pepm19.core.FP
 
 class CCASTest extends AbstractFPTest {
   override def getFP: FP[Int] = new CCAS[Int](executor)

@@ -1,7 +1,7 @@
-package tdauth.futuresandpromises.core.mvar
+package tdauth.pepm19.core.mvar
 
-import tdauth.futuresandpromises._
-import tdauth.futuresandpromises.core.{Core, FP, Noop}
+import tdauth.pepm19._
+import tdauth.pepm19.core.{Core, FP, Noop}
 
 import scala.concurrent.SyncVar
 import scala.util.Left

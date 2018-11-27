@@ -1,8 +1,8 @@
-package tdauth.futuresandpromises.core
+package tdauth.pepm19.core
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import tdauth.futuresandpromises.{Executor, PredicateNotFulfilled}
+import tdauth.pepm19.{Executor, PredicateNotFulfilled}
 
 import scala.util.control.NonFatal
 import scala.util.Try
@@ -28,7 +28,7 @@ trait FP[T] extends Core[T] {
   def onComplete(c: Callback): Unit = onCompleteC(c)
   // We have to use the name `getP` since the name get is already used by AtomicReference.
   def getP(): Try[T] = getC()
-  def isReady: Boolean = isReadyC
+  def isReady(): Boolean = isReadyC
 
   // Derived promise methods:
   def trySuccess(v: T): Boolean = tryComplete(Success(v))

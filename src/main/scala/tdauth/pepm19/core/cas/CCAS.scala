@@ -1,13 +1,12 @@
-package tdauth.futuresandpromises.core.cas
+package tdauth.pepm19.core.cas
 
 import java.util.concurrent.atomic.AtomicReference
 
-import tdauth.futuresandpromises._
-import tdauth.futuresandpromises.core.{Core, FP, Noop}
+import tdauth.pepm19._
+import tdauth.pepm19.core.{Core, FP, Noop}
 
 import scala.annotation.tailrec
-import scala.util.Left
-import scala.util.Try
+import scala.util.{Left, Try}
 
 /**
   * Stores either a result of a future when the future has been completed or the list of callbacks.
@@ -22,7 +21,7 @@ class CCAS[T](ex: Executor) extends AtomicReference[FP[T]#Value](Right(Noop)) wi
 
   override def getC(): Try[T] = super[FP].getResultWithMVar
 
-  override def isReadyC: Boolean = {
+  override def isReadyC(): Boolean = {
     val s = get
     s match {
       case Left(_)  => true

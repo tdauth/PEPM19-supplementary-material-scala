@@ -12,11 +12,11 @@ scalacOptions := Seq("-unchecked", "-deprecation", "-feature")
 javaOptions += "-Djava.compiler=NONE"
 
 // set the main class for 'sbt run'
-mainClass in (Compile, run) := Some("tdauth.futuresandpromises.benchmarks.Benchmarks")
+mainClass in (Compile, run) := Some("tdauth.pepm19.benchmarks.Benchmarks")
 // set the main class for packaging the main jar
-mainClass in (Compile, packageBin) := Some("tdauth.futuresandpromises.benchmarks.Benchmarks")
+mainClass in (Compile, packageBin) := Some("tdauth.pepm19.benchmarks.Benchmarks")
 
-coverageExcludedPackages := "benchmarks.*;promiselinking.*"
+coverageExcludedPackages := "tdauth.pepm19.benchmarks.*;tdauth.pepm19.programtransformations.*"
 
 resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 

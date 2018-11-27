@@ -1,4 +1,4 @@
-package tdauth.futuresandpromises.core
+package tdauth.pepm19.core
 
 import scala.util.Try
 
