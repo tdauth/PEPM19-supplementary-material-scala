@@ -1,5 +1,7 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executors
+
 import tdauth.pepm19.core.FP
 
 import scala.collection.immutable.List
@@ -7,6 +9,7 @@ import scala.concurrent.SyncVar
 import scala.util.Success
 
 abstract class AbstractFPTest extends AbstractUnitSpec {
+  private val executor = new JavaExecutor(Executors.newSingleThreadExecutor())
 
   // Basic future methods:
   "get " should "return a successful value" in {
@@ -353,4 +356,5 @@ abstract class AbstractFPTest extends AbstractUnitSpec {
   }
 
   def getFP: FP[Int]
+  def getExecutor: Executor = executor
 }
