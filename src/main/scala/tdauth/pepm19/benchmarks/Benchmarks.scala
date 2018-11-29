@@ -377,8 +377,7 @@ object Benchmarks extends App {
 
   def perf2ScalaFP(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
-    var ex: Tuple2[ExecutorService, ExecutionContext] = null
-    val difference = getScalaFPExecutor(cores)
+    var ex = getScalaFPExecutor(cores)
     val executionService = ex._1
     val executionContext = ex._2
 
