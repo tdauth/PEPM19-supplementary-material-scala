@@ -1,5 +1,6 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.util.control.NonFatal
@@ -12,7 +13,10 @@ import scala.util.{Failure, Success, Try}
 trait FP[T] extends Core[T] {
 
   // Basic methods:
-  // newC has to be implemented by the concrete types.
+  /**
+    * `newC` has to be implemented by the concrete types.
+    * We have to use this name since the name `new` which is used in Haskell is a keyword in Scala.
+    */
   def newFP[S](executor: Executor): FP[S] =
     newC[S](executor).asInstanceOf[FP[S]]
   def getExecutor: Executor = getExecutorC
@@ -22,23 +26,36 @@ trait FP[T] extends Core[T] {
 
   // Basic future methods:
   def onComplete(c: Callback): Unit = onCompleteC(c)
-  // We have to use the name `getP` since the name get is already used by AtomicReference.
+
+  /**
+    * We have to use the name `getP` since the name `get` which is used in Haskell is already used by `AtomicReference`.
+    */
   def getP(): Try[T] = getC()
-  def isReady(): Boolean = isReadyC
 
   // Derived promise methods:
   def trySuccess(v: T): Boolean = tryComplete(Success(v))
   def tryFail(e: Throwable): Boolean = tryComplete(Failure(e))
-  def tryCompleteWith(other: FP[T]): Unit =
-    other.onComplete(this.tryComplete(_))
   def trySuccessWith(other: FP[T]): Unit = other.onSuccess(this.trySuccess(_))
   def tryFailWith(other: FP[T]): Unit = other.onFail(this.tryFail(_))
+  def tryCompleteWith(other: FP[T]): Unit =
+    other.onComplete(this.tryComplete(_))
 
   // Derived future methods:
+  def future_[S](h: () => Try[S]): FP[S] = {
+    val p = newFP[S](getExecutor)
+    getExecutor.execute(() => p.tryComplete(h()))
+    p
+  }
+  def future[S](v: Try[S]): FP[S] = future_(() => v)
   def onSuccess(f: T => Unit): Unit =
     onComplete(t => if (t.isSuccess) f.apply(t.get))
   def onFail(f: Throwable => Unit): Unit =
     onComplete(t => if (t.isFailure) f.apply(t.failed.get))
+  def transformWith[S](f: Try[T] => FP[S]): FP[S] = {
+    val p = newFP[S](getExecutor)
+    onComplete(t => p.tryCompleteWith(f.apply(t)))
+    p
+  }
   def transform[S](f: Try[T] => S): FP[S] = {
     val p = newFP[S](getExecutor)
     onComplete(t => {
@@ -48,12 +65,6 @@ trait FP[T] extends Core[T] {
         case NonFatal(e) => p.tryFail(e)
       }
     })
-    p
-  }
-
-  def transformWith[S](f: Try[T] => FP[S]): FP[S] = {
-    val p = newFP[S](getExecutor)
-    onComplete(t => p.tryCompleteWith(f.apply(t)))
     p
   }
   def followedBy[S](f: T => S): FP[S] = transform(t => f.apply(t.get))

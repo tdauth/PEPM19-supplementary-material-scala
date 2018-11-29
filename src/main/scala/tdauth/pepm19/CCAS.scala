@@ -1,5 +1,6 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicReference
 
 import scala.annotation.tailrec
@@ -17,14 +18,6 @@ class CCAS[T](ex: Executor) extends AtomicReference[FP[T]#Value](Right(Noop)) wi
   override def newC[S](ex: Executor): Core[S] = new CCAS[S](ex)
 
   override def getC(): Try[T] = super[FP].getResultWithMVar
-
-  override def isReadyC(): Boolean = {
-    val s = get
-    s match {
-      case Left(_)  => true
-      case Right(_) => false
-    }
-  }
 
   override def tryCompleteC(v: Try[T]): Boolean = tryCompleteInternal(v)
 

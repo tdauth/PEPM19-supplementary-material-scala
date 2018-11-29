@@ -3,7 +3,7 @@ package tdauth.pepm19.benchmarks
 import java.io.{File, FileWriter}
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
+import java.util.concurrent.{Executor, ExecutorService, Executors, ThreadFactory}
 
 import tdauth.pepm19.{CSTM, _}
 
@@ -64,18 +64,7 @@ object Benchmarks extends App {
     } finally fileWriter.close()
   }
 
-  /**
-    * Measures the execution time of t and returns it in ns.
-    * The returned value can be substracted from the total execution time to ignore it.
-    */
-  def benchmarkSuspend(t: => Unit): Long = {
-    val start = System.nanoTime()
-    t
-    val fin = System.nanoTime()
-    (fin - start)
-  }
-
-  type TestFunction = () => Long
+  type TestFunction = () => Unit
 
   /**
     * @param t The test function which returns time which has to be substracted from the exectuion time since it should not be measured.
@@ -83,11 +72,11 @@ object Benchmarks extends App {
   def execTest(t: TestFunction): Double = {
     System.gc
     val start = System.nanoTime()
-    val difference = t()
+    t()
     val fin = System.nanoTime()
-    val result = (fin - start) - difference
+    val result = (fin - start)
     val seconds = result.toDouble / 1000000000.0
-    printf("Time: %.2fs, Time in ns: %d, Excluded time in ns: %d\n", seconds, result, difference)
+    printf("Time: %.2fs\n", seconds)
     seconds
   }
 
@@ -246,7 +235,7 @@ object Benchmarks extends App {
   def threadFactory(prefix: String): ThreadFactory =
     new SimpleThreadFactory(prefix)
 
-  def fixedThreadPool(n: Int, prefix: String) =
+  def fixedThreadPool(n: Int, prefix: String): ExecutorService =
     Executors.newFixedThreadPool(n, threadFactory(prefix))
 
   def getTwitterUtilExecutor(n: Int) =
@@ -257,15 +246,11 @@ object Benchmarks extends App {
     (executionService, ExecutionContext.fromExecutorService(executionService))
   }
 
-  def getPrimExecutor(n: Int): Executor = {
-    val executionService = fixedThreadPool(n, "prim")
-    new JavaExecutor(executionService)
-  }
+  def getPrimExecutor(n: Int): ExecutorService = fixedThreadPool(n, "prim")
 
-  def perf1TwitterUtil(n: Int, m: Int, k: Int, cores: Int): Long = {
+  def perf1TwitterUtil(n: Int, m: Int, k: Int, cores: Int) {
     val counter = new Synchronizer(n * (m + k))
-    var ex: com.twitter.util.ExecutorServiceFuturePool = null
-    val difference = benchmarkSuspend { ex = getTwitterUtilExecutor(cores) }
+    var ex = getTwitterUtilExecutor(cores)
 
     val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
 
@@ -293,14 +278,11 @@ object Benchmarks extends App {
     promises.foreach(p => com.twitter.util.Await.result(p))
 
     counter.await
-
-    difference + benchmarkSuspend { ex.executor.shutdownNow }
   }
 
-  def perf2TwitterUtil(n: Int, cores: Int): Long = {
+  def perf2TwitterUtil(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
-    var ex: com.twitter.util.ExecutorServiceFuturePool = null
-    val difference = benchmarkSuspend { ex = getTwitterUtilExecutor(cores) }
+    var ex = getTwitterUtilExecutor(cores)
 
     val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
 
@@ -326,13 +308,11 @@ object Benchmarks extends App {
 
     promises(0).setValue(1)
     counter.await
-    difference + benchmarkSuspend { ex.executor.shutdownNow }
   }
 
-  def perf3TwitterUtil(n: Int, cores: Int): Long = {
+  def perf3TwitterUtil(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
-    var ex: com.twitter.util.ExecutorServiceFuturePool = null
-    val difference = benchmarkSuspend { ex = getTwitterUtilExecutor(cores) }
+    var ex = getTwitterUtilExecutor(cores)
 
     val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
 
@@ -362,13 +342,11 @@ object Benchmarks extends App {
 
     promises(0).setValue(1)
     counter.await
-    difference + benchmarkSuspend { ex.executor.shutdownNow }
   }
 
-  def perf1ScalaFP(n: Int, m: Int, k: Int, cores: Int): Long = {
+  def perf1ScalaFP(n: Int, m: Int, k: Int, cores: Int) {
     val counter = new Synchronizer(n * (m + k))
-    var ex: Tuple2[ExecutorService, ExecutionContext] = null
-    val difference = benchmarkSuspend { ex = getScalaFPExecutor(cores) }
+    var ex = getScalaFPExecutor(cores)
     val executionService = ex._1
     val executionContext = ex._2
 
@@ -395,13 +373,12 @@ object Benchmarks extends App {
     promises.foreach(p => Await.result(p.future, Duration.Inf))
 
     counter.await
-    difference + benchmarkSuspend { executionService.shutdownNow }
   }
 
-  def perf2ScalaFP(n: Int, cores: Int): Long = {
+  def perf2ScalaFP(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
     var ex: Tuple2[ExecutorService, ExecutionContext] = null
-    val difference = benchmarkSuspend { ex = getScalaFPExecutor(cores) }
+    val difference = getScalaFPExecutor(cores)
     val executionService = ex._1
     val executionContext = ex._2
 
@@ -425,13 +402,11 @@ object Benchmarks extends App {
 
     promises(0).trySuccess(1)
     counter.await
-    difference + benchmarkSuspend { executionService.shutdownNow }
   }
 
-  def perf3ScalaFP(n: Int, cores: Int): Long = {
+  def perf3ScalaFP(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
-    var ex: Tuple2[ExecutorService, ExecutionContext] = null
-    val difference = benchmarkSuspend { ex = getScalaFPExecutor(cores) }
+    var ex = getScalaFPExecutor(cores)
     val executionService = ex._1
     val executionContext = ex._2
 
@@ -458,19 +433,17 @@ object Benchmarks extends App {
 
     promises(0).trySuccess(1)
     counter.await
-    difference + benchmarkSuspend { executionService.shutdownNow }
   }
 
-  def perf1Prim(n: Int, m: Int, k: Int, cores: Int, f: (Executor) => FP[Int]): Long = {
+  def perf1Prim(n: Int, m: Int, k: Int, cores: Int, f: (Executor) => FP[Int]) {
     val counter = new Synchronizer(n * (m + k))
-    var ex: Executor = null
-    val difference = benchmarkSuspend { ex = getPrimExecutor(cores) }
+    var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
 
     promises.foreach(p => {
-      1 to m foreach (_ => ex.submit(() => p.onComplete(t => counter.increment)))
+      1 to m foreach (_ => ex.execute(() => p.onComplete(t => counter.increment)))
       1 to k foreach (_ =>
-        ex.submit(() => {
+        ex.execute(() => {
           p.trySuccess(1)
           counter.increment
         }))
@@ -480,13 +453,11 @@ object Benchmarks extends App {
     promises.foreach(p => p.getP)
 
     counter.await
-    difference + benchmarkSuspend { ex.shutdown }
   }
 
-  def perf2Prim(n: Int, cores: Int, f: (Executor) => FP[Int]): Long = {
+  def perf2Prim(n: Int, cores: Int, f: (Executor) => FP[Int]) {
     val counter = new Synchronizer(n)
-    var ex: Executor = null
-    val difference = benchmarkSuspend { ex = getPrimExecutor(cores) }
+    var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
@@ -507,13 +478,11 @@ object Benchmarks extends App {
 
     promises(0).trySuccess(1)
     counter.await
-    difference + benchmarkSuspend { ex.shutdown }
   }
 
-  def perf3Prim(n: Int, cores: Int, f: (Executor) => FP[Int]): Long = {
+  def perf3Prim(n: Int, cores: Int, f: (Executor) => FP[Int]) {
     val counter = new Synchronizer(n)
-    var ex: Executor = null
-    val difference = benchmarkSuspend { ex = getPrimExecutor(cores) }
+    var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
@@ -533,6 +502,5 @@ object Benchmarks extends App {
 
     promises(0).trySuccess(1)
     counter.await
-    difference + benchmarkSuspend { ex.shutdown }
   }
 }

@@ -1,5 +1,7 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executor
+
 import scala.concurrent.stm._
 import scala.util.Try
 
@@ -16,16 +18,6 @@ class CSTM[T](ex: Executor) extends FP[T] {
     s match {
       case Left(x)  => x
       case Right(x) => retry
-    }
-  }
-
-  override def isReadyC: Boolean = {
-    atomic { implicit txn =>
-      val s = result()
-      s match {
-        case Left(_)  => true
-        case Right(_) => false
-      }
     }
   }
 

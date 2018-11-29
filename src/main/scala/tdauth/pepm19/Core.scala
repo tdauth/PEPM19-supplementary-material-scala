@@ -1,5 +1,7 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executor
+
 import scala.annotation.tailrec
 import scala.concurrent.SyncVar
 import scala.util.Try
@@ -17,6 +19,7 @@ trait Core[T] {
 
   /**
     * The executor is passed on the combined futures.
+    * We could also use Scala's `ExecutionContext` here but it is not necessary.
     */
   def getExecutorC: Executor
 
@@ -26,7 +29,6 @@ trait Core[T] {
   def getC(): Try[T]
   def tryCompleteC(v: Try[T]): Boolean
   def onCompleteC(c: Callback): Unit
-  def isReadyC(): Boolean
 
   /**
     * Helper method which uses an MVar to block until the future has been completed and
@@ -42,7 +44,7 @@ trait Core[T] {
     if (callbacks ne Noop) { LinkedCallbackEntry(c, callbacks) } else { SingleCallbackEntry(c) }
 
   protected def dispatchCallback(v: Try[T], c: Callback): Unit =
-    getExecutorC.submit(() => c.apply(v))
+    getExecutorC.execute(() => c.apply(v))
 
   /**
     * Dispatches each callback separately to the executor.
@@ -53,11 +55,11 @@ trait Core[T] {
   @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
     callbacks match {
       case LinkedCallbackEntry(_, prev) => {
-        getExecutorC.submit(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v))
+        getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v))
         dispatchCallbacksOneAtATime(v, prev)
       }
       case SingleCallbackEntry(_) =>
-        getExecutorC.submit(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c.apply(v))
+        getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c.apply(v))
       case Noop =>
     }
   }

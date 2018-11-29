@@ -1,5 +1,7 @@
 package tdauth.pepm19
 
+import java.util.concurrent.Executor
+
 import scala.concurrent.SyncVar
 import scala.util.{Left, Try}
 
@@ -19,11 +21,6 @@ class CMVar[T](ex: Executor) extends SyncVar[FP[T]#Value] with FP[T] {
     sig.get
     get.left.get
   }
-
-  /**
-    * In Haskell we could call isEmptyMVar.
-    */
-  override def isReadyC(): Boolean = sig.isSet
 
   override def tryCompleteC(v: Try[T]): Boolean = {
     val s = take()

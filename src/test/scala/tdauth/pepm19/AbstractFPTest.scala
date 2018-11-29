@@ -1,21 +1,21 @@
 package tdauth.pepm19
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executor, Executors}
+
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.collection.immutable.List
 import scala.concurrent.SyncVar
 import scala.util.Success
 
-abstract class AbstractFPTest extends AbstractUnitSpec {
-  private val executor = new JavaExecutor(Executors.newSingleThreadExecutor())
+abstract class AbstractFPTest extends FlatSpec with Matchers {
+  private val executor = Executors.newSingleThreadExecutor()
 
   // Basic future methods:
   "get " should "return a successful value" in {
     val p = getFP
-    p.isReady should be(false)
     p.trySuccess(10)
     p.getP() should be(Success(10))
-    p.isReady should be(true)
   }
 
   // Basic promise methods:
@@ -83,7 +83,6 @@ abstract class AbstractFPTest extends AbstractUnitSpec {
 
     val p = getFP
     p.trySuccessWith(p0)
-    p.isReady should be(false)
     p.trySuccess(11) should be(true)
     p.getP() should be(Success(11))
   }
@@ -103,7 +102,6 @@ abstract class AbstractFPTest extends AbstractUnitSpec {
 
     val p = getFP
     p.tryFailWith(p0)
-    p.isReady should be(false)
     p.tryFail(new RuntimeException("test")) should be(true)
     the[RuntimeException] thrownBy p.getP().get should have message "test"
   }
@@ -149,6 +147,16 @@ abstract class AbstractFPTest extends AbstractUnitSpec {
     l.get
     val finalResult = s.get
     finalResult should be(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+  }
+
+  "future_" should "create a successfully completed future" in {
+    val p = getFP.future_(() => Success(10))
+    p.getP() should be(Success(10))
+  }
+
+  "future" should "create a successfully completed future" in {
+    val p = getFP.future(Success(10))
+    p.getP() should be(Success(10))
   }
 
   "onSuccess" should "register a callback which is called" in {
