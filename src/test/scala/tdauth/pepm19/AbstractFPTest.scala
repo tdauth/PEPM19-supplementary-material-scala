@@ -9,41 +9,44 @@ import scala.concurrent.SyncVar
 import scala.util.Success
 
 abstract class AbstractFPTest extends FlatSpec with Matchers {
+  val FirstNumber = 10
+  val FirstNumberTimes10 = 100
+  val SecondNumber = 11
   private val executor = Executors.newSingleThreadExecutor()
 
   // Basic future methods:
   "get " should "return a successful value" in {
     val p = getFP
-    p.trySuccess(10)
-    p.getP() should be(Success(10))
+    p.trySuccess(FirstNumber)
+    p.getP() should be(Success(FirstNumber))
   }
 
   // Basic promise methods:
   "tryComplete" should "not complete a future successfully" in {
     val p = getFP
-    p.tryComplete(Success(10)) should be(true)
-    p.getP() should be(Success(10))
+    p.tryComplete(Success(FirstNumber)) should be(true)
+    p.getP() should be(Success(FirstNumber))
   }
 
   it should "not complete a future which is already completed" in {
     val p = getFP
-    p.trySuccess(10) should be(true)
-    p.tryComplete(Success(11)) should be(false)
-    p.getP() should be(Success(10))
+    p.trySuccess(FirstNumber) should be(true)
+    p.tryComplete(Success(SecondNumber)) should be(false)
+    p.getP() should be(Success(FirstNumber))
   }
 
   // Derived promise methods:
   "trySuccess" should "should complete a future successfully" in {
     val p = getFP
-    p.trySuccess(10) should be(true)
-    p.getP() should be(Success(10))
+    p.trySuccess(FirstNumber) should be(true)
+    p.getP() should be(Success(FirstNumber))
   }
 
   it should "not complete a future which is already completed" in {
     val p = getFP
-    p.trySuccess(10) should be(true)
-    p.trySuccess(11) should be(false)
-    p.getP() should be(Success(10))
+    p.trySuccess(FirstNumber) should be(true)
+    p.trySuccess(SecondNumber) should be(false)
+    p.getP() should be(Success(FirstNumber))
   }
 
   "tryFail" should "complete a future with an exception" in {
@@ -61,20 +64,20 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   "tryCompleteWith" should "complete a future with the help of another future" in {
     val p0 = getFP
-    p0.trySuccess(10)
+    p0.trySuccess(FirstNumber)
 
     val p = getFP
     p.tryCompleteWith(p0)
-    p.getP() should be(Success(10))
+    p.getP() should be(Success(FirstNumber))
   }
 
   "trySuccessWith" should "complete a future successfully with the help of another future" in {
     val p0 = getFP
-    p0.trySuccess(10)
+    p0.trySuccess(FirstNumber)
 
     val p = getFP
     p.trySuccessWith(p0)
-    p.getP() should be(Success(10))
+    p.getP() should be(Success(FirstNumber))
   }
 
   it should "not complete a future with the help of a failing future" in {
@@ -83,8 +86,8 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
     val p = getFP
     p.trySuccessWith(p0)
-    p.trySuccess(11) should be(true)
-    p.getP() should be(Success(11))
+    p.trySuccess(SecondNumber) should be(true)
+    p.getP() should be(Success(SecondNumber))
   }
 
   "tryFailWith" should "complete a future with an exception with the help of another future" in {
@@ -98,7 +101,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   it should "not complete a future with the help of a successful future" in {
     val p0 = getFP
-    p0.trySuccess(10)
+    p0.trySuccess(FirstNumber)
 
     val p = getFP
     p.tryFailWith(p0)
@@ -116,16 +119,16 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     val s = new SyncVar[List[Int]]
     val l = new SyncVar[Unit]
     s.put(List())
-    1 to 10 foreach (i =>
+    1 to FirstNumber foreach (i =>
       p.onComplete(_ => {
         val v = s.take()
         s.put(v :+ i)
         if (i == 1) l.put(())
       }))
-    p.trySuccess(10) should be(true)
+    p.trySuccess(FirstNumber) should be(true)
     l.get
     val finalResult = s.get
-    finalResult should be(List(10, 9, 8, 7, 6, 5, 4, 3, 2, 1))
+    finalResult should be(List(FirstNumber, 9, 8, 7, 6, 5, 4, 3, 2, 1))
   }
 
   /**
@@ -134,37 +137,37 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     */
   it should "register multiple callbacks on a completed promise which are all called in the correct order" in {
     val p = getFP
-    p.trySuccess(10) should be(true)
+    p.trySuccess(FirstNumber) should be(true)
     val s = new SyncVar[List[Int]]
     val l = new SyncVar[Unit]
     s.put(List())
-    1 to 10 foreach (i =>
+    1 to FirstNumber foreach (i =>
       p.onComplete(_ => {
         val v = s.take()
         s.put(v :+ i)
-        if (i == 10) l.put(())
+        if (i == FirstNumber) l.put(())
       }))
     l.get
     val finalResult = s.get
-    finalResult should be(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+    finalResult should be(List(1, 2, 3, 4, 5, 6, 7, 8, 9, FirstNumber))
   }
 
   "future_" should "create a successfully completed future" in {
-    val p = getFP.future_(() => Success(10))
-    p.getP() should be(Success(10))
+    val p = getFP.future_(() => Success(FirstNumber))
+    p.getP() should be(Success(FirstNumber))
   }
 
   "future" should "create a successfully completed future" in {
-    val p = getFP.future(Success(10))
-    p.getP() should be(Success(10))
+    val p = getFP.future(Success(FirstNumber))
+    p.getP() should be(Success(FirstNumber))
   }
 
   "onSuccess" should "register a callback which is called" in {
     val p = getFP
     val s = new SyncVar[Int]
     p.onSuccess(v => s.put(v))
-    p.trySuccess(10) should be(true)
-    s.get should be(10)
+    p.trySuccess(FirstNumber) should be(true)
+    s.get should be(FirstNumber)
   }
 
   "onFail" should "register a callback which is called" in {
@@ -177,15 +180,15 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   "transform" should "create a new successful future" in {
     val p = getFP
-    val s = p.transform(v => v.get * 10)
-    p.trySuccess(10)
-    s.getP() should be(Success(100))
+    val s = p.transform(v => v.get * FirstNumber)
+    p.trySuccess(FirstNumber)
+    s.getP() should be(Success(FirstNumberTimes10))
   }
 
   it should "create a failed future" in {
     val p = getFP
     val s = p.transform(_ => throw new RuntimeException("test"))
-    p.trySuccess(10)
+    p.trySuccess(FirstNumber)
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
 
@@ -193,31 +196,31 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     val p = getFP
     val p0 = getFP
     val s = p.transformWith(_ => p0)
-    p.trySuccess(10)
-    p0.trySuccess(11)
-    s.getP() should be(Success(11))
+    p.trySuccess(FirstNumber)
+    p0.trySuccess(SecondNumber)
+    s.getP() should be(Success(SecondNumber))
   }
 
   it should "create a failed future" in {
     val p = getFP
     val p0 = getFP
     val s = p.transformWith(_ => p0)
-    p.trySuccess(10)
+    p.trySuccess(FirstNumber)
     p0.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
 
   "followedBy" should "create a new successful future" in {
     val p = getFP
-    val s = p.followedBy(_ * 10)
-    p.trySuccess(10)
-    s.getP() should be(Success(100))
+    val s = p.followedBy(_ * FirstNumber)
+    p.trySuccess(FirstNumber)
+    s.getP() should be(Success(FirstNumberTimes10))
   }
 
   it should "create a failed future" in {
     val p = getFP
     val s = p.followedBy(_ => throw new RuntimeException("test"))
-    p.trySuccess(10)
+    p.trySuccess(FirstNumber)
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
 
@@ -225,16 +228,16 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     val p = getFP
     val p0 = getFP
     val s = p.followedByWith(_ => p0)
-    p.trySuccess(10)
-    p0.trySuccess(11)
-    s.getP should be(Success(11))
+    p.trySuccess(FirstNumber)
+    p0.trySuccess(SecondNumber)
+    s.getP should be(Success(SecondNumber))
   }
 
   it should "create a failed future" in {
     val p = getFP
     val p0 = getFP
     val s = p.followedByWith(_ => p0)
-    p.trySuccess(10)
+    p.trySuccess(FirstNumber)
     p0.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
@@ -250,8 +253,8 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   "guard" should "throw the exception PredicateNotFulfilled" in {
     val p = getFP
-    val future = p.guard(_ != 10)
-    p.trySuccess(10)
+    val future = p.guard(_ != FirstNumber)
+    p.trySuccess(FirstNumber)
     the[PredicateNotFulfilled] thrownBy future
       .getP()
       .get should have message null
@@ -259,14 +262,14 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   it should "not throw any exception" in {
     val p = getFP
-    val future = p.guard(_ == 10)
-    p.trySuccess(10)
-    future.getP() should be(Success(10))
+    val future = p.guard(_ == FirstNumber)
+    p.trySuccess(FirstNumber)
+    future.getP() should be(Success(FirstNumber))
   }
 
   it should "throw the initial exception" in {
     val p = getFP
-    val future = p.guard(_ == 10)
+    val future = p.guard(_ == FirstNumber)
     p.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy future.getP().get should have message "test"
   }
@@ -275,9 +278,9 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     val p0 = getFP
     val p1 = getFP
     val f = p0.orAlt(p1)
-    p0.trySuccess(10)
-    p1.trySuccess(11)
-    f.getP() should be(Success(10))
+    p0.trySuccess(FirstNumber)
+    p1.trySuccess(SecondNumber)
+    f.getP() should be(Success(FirstNumber))
 
   }
 
@@ -285,9 +288,9 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     val p0 = getFP
     p0.tryFail(new RuntimeException("test"))
     val p1 = getFP
-    p1.trySuccess(11)
+    p1.trySuccess(SecondNumber)
     val f = p0.orAlt(p1)
-    f.getP() should be(Success(11))
+    f.getP() should be(Success(SecondNumber))
   }
 
   it should "complete the final future with the first one over the second one when both are failing" in {
@@ -301,18 +304,18 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   "first" should "complete the final future with the first one" in {
     val p0 = getFP
-    p0.trySuccess(10)
+    p0.trySuccess(FirstNumber)
     val p1 = getFP
     val f = p0.first(p1)
-    f.getP() should be(Success(10))
+    f.getP() should be(Success(FirstNumber))
   }
 
   it should "complete the final future with the second one" in {
     val p1 = getFP
-    p1.trySuccess(11)
+    p1.trySuccess(SecondNumber)
     val p0 = getFP
     val f = p1.first(p0)
-    f.getP() should be(Success(11))
+    f.getP() should be(Success(SecondNumber))
   }
 
   it should "complete the final future with the second one although it fails" in {
@@ -325,10 +328,10 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   "firstSucc" should "complete the final future with the first one" in {
     val p0 = getFP
-    p0.trySuccess(10)
+    p0.trySuccess(FirstNumber)
     val p1 = getFP
     val f = p0.firstSucc(p1)
-    f.getP() should be(Success(10))
+    f.getP() should be(Success(FirstNumber))
   }
 
   it should "complete the final future with the second one" in {
@@ -336,9 +339,9 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     p0.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy p0.getP().get should have message "test"
     val p1 = getFP
-    p1.trySuccess(11)
+    p1.trySuccess(SecondNumber)
     val f = p0.firstSucc(p1)
-    f.getP() should be(Success(11))
+    f.getP() should be(Success(SecondNumber))
   }
 
   it should "complete with the exception of the second future" in {

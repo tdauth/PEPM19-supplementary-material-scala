@@ -18,6 +18,11 @@ import scala.util.control.NonFatal
   * Therefore, we only have four different `perf<n>` methods.
   */
 object Benchmarks extends App {
+  val Tests = 1 to 4
+  val ImplementationNames =
+    Vector("Twitter Util", "Scala FP", "Prim CAS", "Prim MVar", "Prim STM")
+  val PlotFileSuffixes = Vector("twitterutil", "scalafp", "cas", "mvar", "stm")
+
   val Iterations = 10
 
   /**
@@ -48,8 +53,8 @@ object Benchmarks extends App {
 
   def deletePlotFiles() {
     val files = for {
-      testNumber <- Vector(1, 2, 3, 4)
-      plotFileSuffix <- Vector("twitterutil", "scalafp", "cas", "mvar", "stm")
+      testNumber <- Tests
+      plotFileSuffix <- PlotFileSuffixes
 
     } yield new File(getPlotFileName(testNumber, plotFileSuffix))
     files.filter(_.exists).foreach(_.delete)
@@ -92,16 +97,12 @@ object Benchmarks extends App {
   }
 
   def runAll(testNumber: Int, cores: Int, t0: TestFunction, t1: TestFunction, t2: TestFunction, t3: TestFunction, t4: TestFunction): Unit = {
-    println("Twitter Util")
-    runTest("twitterutil", testNumber, cores, t0)
-    println("Scala FP")
-    runTest("scalafp", testNumber, cores, t1)
-    println("Prim CAS")
-    runTest("cas", testNumber, cores, t2)
-    println("Prim MVar")
-    runTest("mvar", testNumber, cores, t3)
-    println("Prim STM")
-    runTest("stm", testNumber, cores, t4)
+    Vector(t0, t1, t2, t3, t4).zipWithIndex.foreach {
+      case (t, n) => {
+        println(ImplementationNames(n))
+        runTest(PlotFileSuffixes(n), testNumber, cores, t)
+      }
+    }
   }
 
   def test1(cores: Int) {
@@ -287,16 +288,14 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
 
     def registerOnComplete(rest: Seq[com.twitter.util.Promise[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
+      if (rest.size > 0) {
         /*
          * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
          */
-        p1.transform(t =>
+        rest(0).transform(t =>
           ex({
-            if (p2 ne null) {
-              p2.setValue(1)
+            if (rest.size > 1) {
+              rest(1).setValue(1)
               registerOnComplete(rest.tail)
             }
             counter.increment
@@ -317,24 +316,20 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
 
     def registerOnComplete(rest: Seq[com.twitter.util.Promise[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
+      if (rest.size > 0) {
         /*
          * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
          */
-        p1.transform(t => {
+        rest(0).transform(t => {
           ex({
-            if (p2 ne null) {
-              p2.setValue(1)
+            if (rest.size > 1) {
+              rest(1).setValue(1)
             }
             counter.increment
           })
         })
 
-        if (p2 ne null) {
-          registerOnComplete(rest.tail)
-        }
+        registerOnComplete(rest.tail)
       }
     }
 
@@ -383,12 +378,10 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
 
     def registerOnComplete(rest: Seq[scala.concurrent.Promise[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
-        p1.future.onComplete(t => {
-          if (p2 ne null) {
-            p2.trySuccess(1)
+      if (rest.size > 0) {
+        rest(0).future.onComplete(t => {
+          if (rest.size > 1) {
+            rest(1).trySuccess(1)
             registerOnComplete(rest.tail)
           }
           counter.increment
@@ -411,19 +404,15 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
 
     def registerOnComplete(rest: Seq[scala.concurrent.Promise[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
-        p1.future.onComplete(t => {
-          if (p2 ne null) {
-            p2.trySuccess(1)
+      if (rest.size > 0) {
+        rest(0).future.onComplete(t => {
+          if (rest.size > 1) {
+            rest(1).trySuccess(1)
           }
           counter.increment
         })(executionContext)
 
-        if (p2 ne null) {
-          registerOnComplete(rest.tail)
-        }
+        registerOnComplete(rest.tail)
       }
     }
 
@@ -459,12 +448,10 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => f(ex))
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
-        p1.onComplete(t => {
-          if (p2 ne null) {
-            p2.trySuccess(1)
+      if (rest.size > 0) {
+        rest(0).onComplete(t => {
+          if (rest.size > 1) {
+            rest(1).trySuccess(1)
             registerOnComplete(rest.tail)
           }
           counter.increment
@@ -484,11 +471,9 @@ object Benchmarks extends App {
     val promises = (1 to n).map(_ => f(ex))
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
-      val p1 = if (rest.size > 0) rest(0) else null
-      val p2 = if (rest.size > 1) rest(1) else null
-      if (p1 ne null) {
-        p1.onComplete(t => {
-          if (p2 ne null) p2.trySuccess(1)
+      if (rest.size > 0) {
+        rest(0).onComplete(t => {
+          if (rest.size > 1) rest(1).trySuccess(1)
           counter.increment
         })
 
