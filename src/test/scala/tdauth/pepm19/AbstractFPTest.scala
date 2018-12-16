@@ -184,7 +184,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   it should "create a failed future" in {
     val p = getFP
-    val s = p.transform(v => throw new RuntimeException("test"))
+    val s = p.transform(_ => throw new RuntimeException("test"))
     p.trySuccess(10)
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
@@ -192,7 +192,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   "transformWith" should "create a new successful future" in {
     val p = getFP
     val p0 = getFP
-    val s = p.transformWith(v => p0)
+    val s = p.transformWith(_ => p0)
     p.trySuccess(10)
     p0.trySuccess(11)
     s.getP() should be(Success(11))
@@ -201,7 +201,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   it should "create a failed future" in {
     val p = getFP
     val p0 = getFP
-    val s = p.transformWith(v => p0)
+    val s = p.transformWith(_ => p0)
     p.trySuccess(10)
     p0.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy s.getP().get should have message "test"
@@ -216,7 +216,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
 
   it should "create a failed future" in {
     val p = getFP
-    val s = p.followedBy(v => throw new RuntimeException("test"))
+    val s = p.followedBy(_ => throw new RuntimeException("test"))
     p.trySuccess(10)
     the[RuntimeException] thrownBy s.getP().get should have message "test"
   }
@@ -224,7 +224,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   "followedByWith" should "create a new successful future" in {
     val p = getFP
     val p0 = getFP
-    val s = p.followedByWith(v => p0)
+    val s = p.followedByWith(_ => p0)
     p.trySuccess(10)
     p0.trySuccess(11)
     s.getP should be(Success(11))
@@ -233,7 +233,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   it should "create a failed future" in {
     val p = getFP
     val p0 = getFP
-    val s = p.followedByWith(v => p0)
+    val s = p.followedByWith(_ => p0)
     p.trySuccess(10)
     p0.tryFail(new RuntimeException("test"))
     the[RuntimeException] thrownBy s.getP().get should have message "test"
@@ -242,7 +242,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   it should "create a failed future by the first one" in {
     val p = getFP
     val p0 = getFP
-    val s = p.followedByWith(v => p0)
+    val s = p.followedByWith(_ => p0)
     p.tryFail(new RuntimeException("test 0"))
     p0.tryFail(new RuntimeException("test 1"))
     the[RuntimeException] thrownBy s.getP().get should have message "test 0"

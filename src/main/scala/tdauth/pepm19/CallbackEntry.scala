@@ -18,9 +18,9 @@ case object Noop extends CallbackEntry
   * This should improve the performance on appending elements compared to storing the whole list.
   * This does also mean that when the callbacks are called, they will be called in reverse order.
   */
-case class LinkedCallbackEntry[T](final val c: (Try[T]) => Unit, final val prev: CallbackEntry) extends CallbackEntry
+case class LinkedCallbackEntry[T](final val c: Try[T] => Unit, final val prev: CallbackEntry) extends CallbackEntry
 
 /**
   * If there is no link to previous callback entry yet, only the callback has to be stored.
   */
-case class SingleCallbackEntry[T](final val c: (Try[T]) => Unit) extends CallbackEntry
+case class SingleCallbackEntry[T](final val c: Try[T] => Unit) extends CallbackEntry

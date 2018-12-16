@@ -35,7 +35,7 @@ trait Core[T] {
     * returns its result. Throws an exception if it has failed.
     */
   protected def getResultWithMVar(): Try[T] = {
-    val s = new CompletionSyncVar[T]
+    val s = new CompletionSyncVar
     this.onCompleteC(s)
     s.take()
   }
@@ -54,10 +54,9 @@ trait Core[T] {
     */
   @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
     callbacks match {
-      case LinkedCallbackEntry(_, prev) => {
+      case LinkedCallbackEntry(_, prev) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v))
         dispatchCallbacksOneAtATime(v, prev)
-      }
       case SingleCallbackEntry(_) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c.apply(v))
       case Noop =>
@@ -67,7 +66,7 @@ trait Core[T] {
   /**
     * This version is much simpler than the CompletionLatch from Scala FP's implementation.
     */
-  private final class CompletionSyncVar[T] extends SyncVar[Try[T]] with ((Try[T]) => Unit) {
+  private final class CompletionSyncVar extends SyncVar[Try[T]] with (Try[T] => Unit) {
     override def apply(value: Try[T]): Unit = put(value)
   }
 }

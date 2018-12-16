@@ -42,7 +42,7 @@ object BecomeRaceScalaFP extends App {
    */
   val tmp = Promise[Int]
   tmp.trySuccess(10)
-  val p0 = tmp.future.flatMap(t => p1.future)
+  val p0 = tmp.future.flatMap(_ => p1.future)
   p0.onComplete(x => callback("Respond p0", x))
   /*
    * This does not create a link but leads to calling the callbacks of p1 when p2 is completed which is wrong!
@@ -57,5 +57,5 @@ object BecomeRaceScalaFP extends App {
   val result = Await.result(p0, Duration.Inf)
   println("Result: " + result + " with a counter of " + counter.get)
   assert(counter.get == 3)
-  ex.shutdown
+  ex.shutdown()
 }

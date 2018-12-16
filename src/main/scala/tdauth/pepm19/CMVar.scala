@@ -25,27 +25,24 @@ class CMVar[T](ex: Executor) extends SyncVar[FP[T]#Value] with FP[T] {
   override def tryCompleteC(v: Try[T]): Boolean = {
     val s = take()
     s match {
-      case Left(_) => {
+      case Left(_) =>
         // Put the value back.
         put(s)
         false
-      }
-      case Right(x) => {
+      case Right(x) =>
         put(Left(v))
         sig.put(())
         dispatchCallbacksOneAtATime(v, x)
         true
-      }
     }
   }
 
   override def onCompleteC(c: Callback): Unit = {
     val s = take()
     s match {
-      case Left(x) => {
+      case Left(x) =>
         put(s)
         dispatchCallback(x, c)
-      }
       case Right(x) => put(Right(appendCallback(x, c)))
     }
   }

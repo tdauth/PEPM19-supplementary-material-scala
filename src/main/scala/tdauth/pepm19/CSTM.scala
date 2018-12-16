@@ -26,11 +26,10 @@ class CSTM[T](ex: Executor) extends FP[T] {
       val s = result()
       s match {
         case Left(x) => false
-        case Right(x) => {
+        case Right(x) =>
           result() = Left(v)
           dispatchCallbacksOneAtATime(v, x)
           true
-        }
       }
     }
   }

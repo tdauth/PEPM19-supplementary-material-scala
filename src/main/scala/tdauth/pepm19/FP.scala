@@ -35,10 +35,10 @@ trait FP[T] extends Core[T] {
   // Derived promise methods:
   def trySuccess(v: T): Boolean = tryComplete(Success(v))
   def tryFail(e: Throwable): Boolean = tryComplete(Failure(e))
-  def trySuccessWith(other: FP[T]): Unit = other.onSuccess(this.trySuccess(_))
-  def tryFailWith(other: FP[T]): Unit = other.onFail(this.tryFail(_))
+  def trySuccessWith(other: FP[T]): Unit = other.onSuccess(trySuccess)
+  def tryFailWith(other: FP[T]): Unit = other.onFail(tryFail)
   def tryCompleteWith(other: FP[T]): Unit =
-    other.onComplete(this.tryComplete(_))
+    other.onComplete(tryComplete)
 
   // Derived future methods:
   def future_[S](h: () => Try[S]): FP[S] = {
@@ -73,11 +73,10 @@ trait FP[T] extends Core[T] {
       try {
         f.apply(t.get)
       } catch {
-        case NonFatal(x) => {
+        case NonFatal(x) =>
           val p = newFP[S](getExecutor)
           p.tryFail(x)
           p
-        }
     })
 
   def guard(f: T => Boolean): FP[T] =
@@ -117,10 +116,10 @@ trait FP[T] extends Core[T] {
     /*
      * This context is required to store if both futures have failed to prevent starvation.
      */
-    val ctx = new AtomicInteger(0);
+    val ctx = new AtomicInteger(0)
     val callback = (t: Try[T]) => {
       if (t.isFailure) {
-        val c = ctx.incrementAndGet();
+        val c = ctx.incrementAndGet()
 
         if (c == 2) {
           p.tryComplete(t)

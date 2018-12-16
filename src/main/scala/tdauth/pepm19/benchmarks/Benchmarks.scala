@@ -38,7 +38,7 @@ object Benchmarks extends App {
   // test 4
   val Test4N = 2000000
 
-  deletePlotFiles
+  deletePlotFiles()
 
   printf("We have %d available processors.\n", Runtime.getRuntime().availableProcessors())
   runAllTests
@@ -60,7 +60,7 @@ object Benchmarks extends App {
     try {
       fileWriter.append("%d  %.2f\n".formatLocal(Locale.US, cores, time))
     } catch {
-      case NonFatal(t) => println(s"Exception: ${t}")
+      case NonFatal(t) => println(s"Exception: $t")
     } finally fileWriter.close()
   }
 
@@ -70,18 +70,18 @@ object Benchmarks extends App {
     * @param t The test function which returns time which has to be substracted from the exectuion time since it should not be measured.
     */
   def execTest(t: TestFunction): Double = {
-    System.gc
+    System.gc()
     val start = System.nanoTime()
     t()
     val fin = System.nanoTime()
-    val result = (fin - start)
+    val result = fin - start
     val seconds = result.toDouble / 1000000000.0
     printf("Time: %.2fs\n", seconds)
     seconds
   }
 
   def runTest(plotFileSuffix: String, testNumber: Int, cores: Int, t: TestFunction) {
-    val rs = for (i <- (1 to Iterations)) yield execTest(t)
+    val rs = (1 to Iterations).map(_ => execTest(t))
     val xs = rs.sorted
     val low = xs.head
     val high = xs.last
@@ -160,7 +160,7 @@ object Benchmarks extends App {
     )
   }
 
-  def runTestForCores(name: String, t: (Int) => Unit) {
+  def runTestForCores(name: String, t: Int => Unit) {
     val nameSeparator = "=" * 40
     println(nameSeparator)
     println(name)
@@ -212,9 +212,9 @@ object Benchmarks extends App {
       lock.lock()
       try {
         counter = counter + 1
-        condition.signal
+        condition.signal()
       } finally {
-        lock.unlock();
+        lock.unlock()
       }
     }
 
@@ -224,9 +224,9 @@ object Benchmarks extends App {
         lock.lock()
         try {
           notFull = counter < max
-          if (notFull) condition.await
+          if (notFull) condition.await()
         } finally {
-          lock.unlock();
+          lock.unlock()
         }
       } while (notFull)
     }
@@ -241,7 +241,7 @@ object Benchmarks extends App {
   def getTwitterUtilExecutor(n: Int) =
     com.twitter.util.FuturePool(fixedThreadPool(n, "twitterutil"))
 
-  def getScalaFPExecutor(n: Int): Tuple2[ExecutorService, ExecutionContext] = {
+  def getScalaFPExecutor(n: Int) = {
     val executionService = fixedThreadPool(n, "scalafp")
     (executionService, ExecutionContext.fromExecutorService(executionService))
   }
@@ -261,7 +261,7 @@ object Benchmarks extends App {
            * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
            * Without transform the benchmark performs much faster.
            */
-          override def run(): Unit = p.transform(t => ex(counter.increment))
+          override def run(): Unit = p.transform(_ => ex(counter.increment))
         })
       })
       1 to k foreach (_ => {
@@ -378,7 +378,6 @@ object Benchmarks extends App {
   def perf2ScalaFP(n: Int, cores: Int) {
     val counter = new Synchronizer(n)
     var ex = getScalaFPExecutor(cores)
-    val executionService = ex._1
     val executionContext = ex._2
 
     val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
@@ -434,7 +433,7 @@ object Benchmarks extends App {
     counter.await
   }
 
-  def perf1Prim(n: Int, m: Int, k: Int, cores: Int, f: (Executor) => FP[Int]) {
+  def perf1Prim(n: Int, m: Int, k: Int, cores: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n * (m + k))
     var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
@@ -449,12 +448,12 @@ object Benchmarks extends App {
     })
 
     // get ps
-    promises.foreach(p => p.getP)
+    promises.foreach(p => p.getP())
 
     counter.await
   }
 
-  def perf2Prim(n: Int, cores: Int, f: (Executor) => FP[Int]) {
+  def perf2Prim(n: Int, cores: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
@@ -479,7 +478,7 @@ object Benchmarks extends App {
     counter.await
   }
 
-  def perf3Prim(n: Int, cores: Int, f: (Executor) => FP[Int]) {
+  def perf3Prim(n: Int, cores: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(cores)
     val promises = (1 to n).map(_ => f(ex))
