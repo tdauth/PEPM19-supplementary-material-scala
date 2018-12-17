@@ -44,7 +44,7 @@ trait Core[T] {
     if (callbacks ne Noop) { LinkedCallbackEntry(c, callbacks) } else { SingleCallbackEntry(c) }
 
   protected def dispatchCallback(v: Try[T], c: Callback): Unit =
-    getExecutorC.execute(() => c.apply(v))
+    getExecutorC.execute(() => c(v))
 
   /**
     * Dispatches each callback separately to the executor.
@@ -55,10 +55,10 @@ trait Core[T] {
   @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
     callbacks match {
       case LinkedCallbackEntry(_, prev) =>
-        getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c.apply(v))
+        getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c(v))
         dispatchCallbacksOneAtATime(v, prev)
       case SingleCallbackEntry(_) =>
-        getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c.apply(v))
+        getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v))
       case Noop =>
     }
   }

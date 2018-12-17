@@ -125,7 +125,7 @@ trait FP[T] extends Core[T] {
           p.tryComplete(t)
         }
       } else {
-        p.trySuccess(t.get)
+        p.tryComplete(t)
       }
     }: Unit
 

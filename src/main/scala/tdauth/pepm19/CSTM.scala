@@ -21,26 +21,22 @@ class CSTM[T](ex: Executor) extends FP[T] {
     }
   }
 
-  override def tryCompleteC(v: Try[T]): Boolean = {
-    atomic { implicit txn =>
-      val s = result()
-      s match {
-        case Left(x) => false
-        case Right(x) =>
-          result() = Left(v)
-          dispatchCallbacksOneAtATime(v, x)
-          true
-      }
+  override def tryCompleteC(v: Try[T]): Boolean = atomic { implicit txn =>
+    val s = result()
+    s match {
+      case Left(x) => false
+      case Right(x) =>
+        result() = Left(v)
+        dispatchCallbacksOneAtATime(v, x)
+        true
     }
   }
 
-  override def onCompleteC(c: Callback): Unit = {
-    atomic { implicit txn =>
-      val s = result()
-      s match {
-        case Left(x)  => dispatchCallback(x, c)
-        case Right(x) => result() = Right(appendCallback(x, c))
-      }
+  override def onCompleteC(c: Callback): Unit = atomic { implicit txn =>
+    val s = result()
+    s match {
+      case Left(x)  => dispatchCallback(x, c)
+      case Right(x) => result() = Right(appendCallback(x, c))
     }
   }
 }
