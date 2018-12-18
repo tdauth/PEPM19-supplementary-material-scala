@@ -15,7 +15,7 @@ import scala.util.control.NonFatal
 
 /**
   * Compares the performance of our FP implementation to the performance of Scala FP and Twitter Util.
-  * We have four different performance tests but test 1 and test 2 use the same method [[Benchmarks#perf1Prim]].
+  * We have four different performance tests but test 1 and test 2 use the same method `Benchmarks#perf1Prim`.
   * Therefore, we only have four different `perf<n>` methods.
   */
 object Benchmarks extends App {
