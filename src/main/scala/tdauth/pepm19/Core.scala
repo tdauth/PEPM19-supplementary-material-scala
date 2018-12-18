@@ -36,7 +36,7 @@ trait Core[T] {
     */
   protected def getResultWithMVar(): Try[T] = {
     val s = new CompletionSyncVar
-    this.onCompleteC(s)
+    onCompleteC(s)
     s.take()
   }
 
@@ -52,7 +52,7 @@ trait Core[T] {
     * In Scala we have underlying executor threads instead and do not use one thread per callback call but at least
     * we can prevent that all callbacks are always called together in the same executor thread.
     */
-  @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit = if (callbacks ne Noop) {
+  @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit =
     callbacks match {
       case LinkedCallbackEntry(_, prev) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c(v))
@@ -61,7 +61,6 @@ trait Core[T] {
         getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v))
       case Noop =>
     }
-  }
 
   /**
     * This version is much simpler than the CompletionLatch from Scala FP's implementation.

@@ -5,7 +5,7 @@ import java.util.concurrent.Executor
 import scala.concurrent.SyncVar
 import scala.util.{Left, Try}
 
-class CMVar[T](ex: Executor) extends SyncVar[FP[T]#Value] with FP[T] {
+class CMVar[T](ex: Executor) extends SyncVar[Core[T]#Value] with FP[T] {
   put(Right(Noop))
 
   /*

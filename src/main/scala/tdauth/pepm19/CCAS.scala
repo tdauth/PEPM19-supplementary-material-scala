@@ -6,18 +6,13 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.util.{Left, Try}
 
-/**
-  * Stores either a result of a future when the future has been completed or the list of callbacks.
-  * Thread-safety by CAS operations.
-  * This is similiar to Scala FP's implementation.
-  */
-class CCAS[T](ex: Executor) extends AtomicReference[FP[T]#Value](Right(Noop)) with FP[T] {
+class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#Value](Right(Noop)) with FP[T] {
 
   override def getExecutorC: Executor = ex
 
   override def newC[S](ex: Executor): Core[S] = new CCAS[S](ex)
 
-  override def getC(): Try[T] = super[FP].getResultWithMVar()
+  override def getC(): Try[T] = getResultWithMVar()
 
   override def tryCompleteC(v: Try[T]): Boolean = tryCompleteInternal(v)
 

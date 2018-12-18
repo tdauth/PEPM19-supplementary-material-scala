@@ -9,6 +9,7 @@ import tdauth.pepm19.{CSTM, _}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
+import scala.language.{implicitConversions, reflectiveCalls}
 import scala.util.Success
 import scala.util.control.NonFatal
 
@@ -47,6 +48,12 @@ object Benchmarks extends App {
 
   printf("We have %d available processors.\n", Runtime.getRuntime().availableProcessors())
   runAllTests
+
+  private implicit def intWithTimes[T](n: Int) = new {
+    def times(f: => T) = 1 to n map { _ =>
+      f
+    }
+  }
 
   private def getPlotFileName(testNumber: Int, plotFileSuffix: String): String =
     "test" + testNumber + "_scala_" + plotFileSuffix + ".dat"
@@ -170,7 +177,7 @@ object Benchmarks extends App {
 
     ExecutorThreads.foreach(c => {
       println(executorThreadsSeparator)
-      println("executorThreads: " + c)
+      println("Executor threads: " + c)
       println(executorThreadsSeparator)
       t(c)
     })
@@ -209,7 +216,7 @@ object Benchmarks extends App {
     var condition = lock.newCondition()
     var counter = 0
 
-    def increment {
+    def increment() {
       lock.lock()
       try {
         counter = counter + 1
@@ -219,7 +226,7 @@ object Benchmarks extends App {
       }
     }
 
-    def await {
+    def await() {
       var notFull = true
       do {
         lock.lock()
@@ -252,40 +259,32 @@ object Benchmarks extends App {
   private def perf1TwitterUtil(n: Int, m: Int, k: Int, executorThreads: Int) {
     val counter = new Synchronizer(n * (m + k))
     var ex = getTwitterUtilExecutor(executorThreads)
-
-    val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
+    val promises = n times com.twitter.util.Promise[Int]
 
     promises.foreach(p => {
-      1 to m foreach (_ => {
-        ex.executor.submit(new Runnable {
-          /*
-           * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
-           * Without transform the benchmark performs much faster.
-           */
-          override def run(): Unit = p.transform(_ => ex(counter.increment))
-        })
-      })
-      1 to k foreach (_ => {
-        ex.executor.submit(new Runnable {
-          override def run(): Unit = {
-            p.updateIfEmpty(com.twitter.util.Return(1))
-            counter.increment
-          }
-        })
+      m times ex.executor.execute(
+        /*
+         * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
+         * Without transform the benchmark performs much faster.
+         */
+        () => p.transform(_ => ex(counter.increment()))
+      )
+      k times ex.executor.execute(() => {
+        p.updateIfEmpty(com.twitter.util.Return(1))
+        counter.increment()
       })
     })
 
     // get ps
     promises.foreach(p => com.twitter.util.Await.result(p))
 
-    counter.await
+    counter.await()
   }
 
   private def perf2TwitterUtil(n: Int, executorThreads: Int) {
     val counter = new Synchronizer(n)
     var ex = getTwitterUtilExecutor(executorThreads)
-
-    val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
+    val promises = n times com.twitter.util.Promise[Int]
 
     def registerOnComplete(rest: Seq[com.twitter.util.Promise[Int]]) {
       if (rest.size > 0) {
@@ -298,7 +297,7 @@ object Benchmarks extends App {
               rest(1).setValue(1)
               registerOnComplete(rest.tail)
             }
-            counter.increment
+            counter.increment()
           }))
       }
     }
@@ -306,14 +305,13 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).setValue(1)
-    counter.await
+    counter.await()
   }
 
   private def perf3TwitterUtil(n: Int, executorThreads: Int) {
     val counter = new Synchronizer(n)
     var ex = getTwitterUtilExecutor(executorThreads)
-
-    val promises = (1 to n).map(_ => com.twitter.util.Promise[Int])
+    val promises = n times com.twitter.util.Promise[Int]
 
     def registerOnComplete(rest: Seq[com.twitter.util.Promise[Int]]) {
       if (rest.size > 0) {
@@ -325,7 +323,7 @@ object Benchmarks extends App {
             if (rest.size > 1) {
               rest(1).setValue(1)
             }
-            counter.increment
+            counter.increment()
           })
         })
 
@@ -336,7 +334,7 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).setValue(1)
-    counter.await
+    counter.await()
   }
 
   private def perf1ScalaFP(n: Int, m: Int, k: Int, executorThreads: Int) {
@@ -344,38 +342,28 @@ object Benchmarks extends App {
     var ex = getScalaFPExecutor(executorThreads)
     val executionService = ex._1
     val executionContext = ex._2
-
-    val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
+    val promises = n times scala.concurrent.Promise[Int]
 
     promises.foreach(p => {
-      1 to m foreach (_ => {
-        executionService.submit(new Runnable {
-          override def run(): Unit =
-            p.future.onComplete(_ => counter.increment)(executionContext)
-        })
-      })
-      1 to k foreach (_ => {
-        executionService.submit(new Runnable {
-          override def run(): Unit = {
-            p.tryComplete(Success(1))
-            counter.increment
-          }
-        })
+      m times executionService.execute(() => p.future.onComplete(_ => counter.increment())(executionContext))
+
+      k times executionService.execute(() => {
+        p.tryComplete(Success(1))
+        counter.increment()
       })
     })
 
     // get ps
     promises.foreach(p => Await.result(p.future, Duration.Inf))
 
-    counter.await
+    counter.await()
   }
 
   private def perf2ScalaFP(n: Int, executorThreads: Int) {
     val counter = new Synchronizer(n)
     var ex = getScalaFPExecutor(executorThreads)
     val executionContext = ex._2
-
-    val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
+    val promises = n times scala.concurrent.Promise[Int]
 
     def registerOnComplete(rest: Seq[scala.concurrent.Promise[Int]]) {
       if (rest.size > 0) {
@@ -384,7 +372,7 @@ object Benchmarks extends App {
             rest(1).trySuccess(1)
             registerOnComplete(rest.tail)
           }
-          counter.increment
+          counter.increment()
         })(executionContext)
       }
     }
@@ -392,7 +380,7 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).trySuccess(1)
-    counter.await
+    counter.await()
   }
 
   private def perf3ScalaFP(n: Int, executorThreads: Int) {
@@ -400,8 +388,7 @@ object Benchmarks extends App {
     var ex = getScalaFPExecutor(executorThreads)
     val executionService = ex._1
     val executionContext = ex._2
-
-    val promises = (1 to n).map(_ => scala.concurrent.Promise[Int])
+    val promises = n times scala.concurrent.Promise[Int]
 
     def registerOnComplete(rest: Seq[scala.concurrent.Promise[Int]]) {
       if (rest.size > 0) {
@@ -409,7 +396,7 @@ object Benchmarks extends App {
           if (rest.size > 1) {
             rest(1).trySuccess(1)
           }
-          counter.increment
+          counter.increment()
         })(executionContext)
 
         registerOnComplete(rest.tail)
@@ -419,32 +406,32 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).trySuccess(1)
-    counter.await
+    counter.await()
   }
 
   private def perf1Prim(n: Int, m: Int, k: Int, executorThreads: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n * (m + k))
     var ex = getPrimExecutor(executorThreads)
-    val promises = (1 to n).map(_ => f(ex))
+    val promises = n times f(ex)
 
     promises.foreach(p => {
-      1 to m foreach (_ => ex.execute(() => p.onComplete(_ => counter.increment)))
-      1 to k foreach (_ =>
-        ex.execute(() => {
-          p.trySuccess(1)
-        }))
+      m times ex.execute(() => p.onComplete(_ => counter.increment()))
+      k times ex.execute(() => {
+        p.trySuccess(1)
+        counter.increment()
+      })
     })
 
     // get ps
     promises.foreach(_.getP())
 
-    counter.await
+    counter.await()
   }
 
   private def perf2Prim(n: Int, executorThreads: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(executorThreads)
-    val promises = (1 to n).map(_ => f(ex))
+    val promises = n times f(ex)
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
       if (rest.size > 0) {
@@ -453,7 +440,7 @@ object Benchmarks extends App {
             rest(1).trySuccess(1)
             registerOnComplete(rest.tail)
           }
-          counter.increment
+          counter.increment()
         })
       }
     }
@@ -461,19 +448,19 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).trySuccess(1)
-    counter.await
+    counter.await()
   }
 
   private def perf3Prim(n: Int, executorThreads: Int, f: Executor => FP[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(executorThreads)
-    val promises = (1 to n).map(_ => f(ex))
+    val promises = n times f(ex)
 
     def registerOnComplete(rest: Seq[FP[Int]]) {
       if (rest.size > 0) {
         rest(0).onComplete(_ => {
           if (rest.size > 1) rest(1).trySuccess(1)
-          counter.increment
+          counter.increment()
         })
 
         registerOnComplete(rest.tail)
@@ -483,6 +470,6 @@ object Benchmarks extends App {
     registerOnComplete(promises)
 
     promises(0).trySuccess(1)
-    counter.await
+    counter.await()
   }
 }
