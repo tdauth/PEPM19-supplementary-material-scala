@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.util.{Left, Try}
 
-class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#Value](Right(Noop)) with FP[T] {
+class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#State](Right(Noop)) with FP[T] {
 
   override def getExecutorC: Executor = ex
 
@@ -24,7 +24,7 @@ class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#Value](Right(Noop)) 
       case Left(_) => false
       case Right(x) =>
         if (compareAndSet(s, Left(v))) {
-          dispatchCallbacksOneAtATime(v, x)
+          executeEachCallback(v, x)
           true
         } else {
           tryCompleteInternal(v)
@@ -35,9 +35,9 @@ class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#Value](Right(Noop)) 
   @tailrec private def onCompleteInternal(c: Callback): Unit = {
     val s = get
     s match {
-      case Left(x) => dispatchCallback(x, c)
+      case Left(x) => executeCallback(x, c)
       case Right(x) =>
-        if (!compareAndSet(s, Right(appendCallback(x, c)))) {
+        if (!compareAndSet(s, Right(prependCallback(x, c)))) {
           onCompleteInternal(c)
         }
     }

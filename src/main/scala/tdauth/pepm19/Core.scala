@@ -13,7 +13,7 @@ trait Core[T] {
 
   type Callback = Try[T] => Unit
 
-  type Value = Either[Try[T], CallbackEntry]
+  type State = Either[Try[T], CallbackEntry]
 
   def newC[S](ex: Executor): Core[S]
 
@@ -40,23 +40,23 @@ trait Core[T] {
     s.take()
   }
 
-  protected def appendCallback(callbacks: CallbackEntry, c: Callback): CallbackEntry =
+  protected def prependCallback(callbacks: CallbackEntry, c: Callback): CallbackEntry =
     if (callbacks ne Noop) { LinkedCallbackEntry(c, callbacks) } else { SingleCallbackEntry(c) }
 
-  protected def dispatchCallback(v: Try[T], c: Callback): Unit =
+  protected def executeCallback(v: Try[T], c: Callback): Unit =
     getExecutorC.execute(() => c(v))
 
   /**
-    * Dispatches each callback separately to the executor.
+    * Executes each callback separately.
     * This behaviour is intended since in Haskell we use one `forkIO` for each callback call.
     * In Scala we have underlying executor threads instead and do not use one thread per callback call but at least
     * we can prevent that all callbacks are always called together in the same executor thread.
     */
-  @inline @tailrec protected final def dispatchCallbacksOneAtATime(v: Try[T], callbacks: CallbackEntry): Unit =
+  @inline @tailrec protected final def executeEachCallback(v: Try[T], callbacks: CallbackEntry): Unit =
     callbacks match {
       case LinkedCallbackEntry(_, prev) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[LinkedCallbackEntry[T]].c(v))
-        dispatchCallbacksOneAtATime(v, prev)
+        executeEachCallback(v, prev)
       case SingleCallbackEntry(_) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v))
       case Noop =>

@@ -5,7 +5,7 @@ import java.util.concurrent.Executor
 import scala.concurrent.SyncVar
 import scala.util.{Left, Try}
 
-class CMVar[T](ex: Executor) extends SyncVar[Core[T]#Value] with FP[T] {
+class CMVar[T](ex: Executor) extends SyncVar[Core[T]#State] with FP[T] {
   put(Right(Noop))
 
   /*
@@ -32,7 +32,7 @@ class CMVar[T](ex: Executor) extends SyncVar[Core[T]#Value] with FP[T] {
       case Right(x) =>
         put(Left(v))
         sig.put(())
-        dispatchCallbacksOneAtATime(v, x)
+        executeEachCallback(v, x)
         true
     }
   }
@@ -42,8 +42,8 @@ class CMVar[T](ex: Executor) extends SyncVar[Core[T]#Value] with FP[T] {
     s match {
       case Left(x) =>
         put(s)
-        dispatchCallback(x, c)
-      case Right(x) => put(Right(appendCallback(x, c)))
+        executeCallback(x, c)
+      case Right(x) => put(Right(prependCallback(x, c)))
     }
   }
 }
