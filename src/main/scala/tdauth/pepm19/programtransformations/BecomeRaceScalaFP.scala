@@ -40,8 +40,7 @@ object BecomeRaceScalaFP extends App {
    * step 1: link from p1 to p0
    * step 2: no link from p2 to p0 since tryCompleteWith does not implement promise linking
    */
-  val tmp = Promise[Int]
-  tmp.trySuccess(10)
+  val tmp = Promise.successful(())
   val p0 = tmp.future.flatMap(_ => p1.future)
   p0.onComplete(x => callback("Respond p0", x))
   /*
