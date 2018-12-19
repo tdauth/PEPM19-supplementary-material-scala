@@ -21,8 +21,8 @@ import scala.util.control.NonFatal
 object Benchmarks extends App {
   val Tests = 1 to 4
   val ImplementationNames =
-    Vector("Twitter Util", "Scala FP", "Prim CAS", "Prim MVar", "Prim STM")
-  val PlotFileSuffixes = Vector("twitterutil", "scalafp", "cas", "mvar", "stm")
+    Vector("Twitter Util", "Scala FP", "Prim CAS", "Prim MVar", "Prim STM", "Prim CAS Promise Linking", "Prim CAS Fixed Promise Linking")
+  val PlotFileSuffixes = Vector("twitterutil", "scalafp", "cas", "mvar", "stm", "caspromiselinking", "casfixedpromiselinking")
 
   val Iterations = 10
 
@@ -43,11 +43,14 @@ object Benchmarks extends App {
   val Test3N = 2000000
   // test 4
   val Test4N = 2000000
+  // test 5
+  val Test5N = 100
 
   deletePlotFiles()
 
   printf("We have %d available processors.\n", Runtime.getRuntime().availableProcessors())
-  runAllTests
+  runTest5()
+  //runAllTests
 
   private implicit def intWithTimes[T](n: Int) = new {
     def times(f: => T) = 1 to n map { _ =>
@@ -103,8 +106,16 @@ object Benchmarks extends App {
     writeEntryIntoPlotFile(getPlotFileName(testNumber, plotFileSuffix), executorThreads, av)
   }
 
-  private def runAll(testNumber: Int, executorThreads: Int, t0: TestFunction, t1: TestFunction, t2: TestFunction, t3: TestFunction, t4: TestFunction): Unit = {
-    Vector(t0, t1, t2, t3, t4).zipWithIndex.foreach {
+  private def runAll(testNumber: Int,
+                     executorThreads: Int,
+                     t0: TestFunction,
+                     t1: TestFunction,
+                     t2: TestFunction,
+                     t3: TestFunction,
+                     t4: TestFunction,
+                     t5: TestFunction,
+                     t6: TestFunction): Unit = {
+    Vector(t0, t1, t2, t3, t4, t5, t6).zipWithIndex.foreach {
       case (t, n) => {
         println(ImplementationNames(n))
         runTest(PlotFileSuffixes(n), testNumber, executorThreads, t)
@@ -123,7 +134,9 @@ object Benchmarks extends App {
       () => perf1ScalaFP(n, m, k, executorThreads),
       () => perf1Prim(n, m, k, executorThreads, ex => new CCAS(ex)),
       () => perf1Prim(n, m, k, executorThreads, ex => new CMVar(ex)),
-      () => perf1Prim(n, m, k, executorThreads, ex => new CSTM(ex))
+      () => perf1Prim(n, m, k, executorThreads, ex => new CSTM(ex)),
+      () => perf1Prim(n, m, k, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf1Prim(n, m, k, executorThreads, ex => new CCASFixedPromiseLinking(ex))
     )
   }
 
@@ -138,7 +151,9 @@ object Benchmarks extends App {
       () => perf1ScalaFP(n, m, k, executorThreads),
       () => perf1Prim(n, m, k, executorThreads, ex => new CCAS(ex)),
       () => perf1Prim(n, m, k, executorThreads, ex => new CMVar(ex)),
-      () => perf1Prim(n, m, k, executorThreads, ex => new CSTM(ex))
+      () => perf1Prim(n, m, k, executorThreads, ex => new CSTM(ex)),
+      () => perf1Prim(n, m, k, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf1Prim(n, m, k, executorThreads, ex => new CCASFixedPromiseLinking(ex))
     )
   }
 
@@ -151,7 +166,9 @@ object Benchmarks extends App {
       () => perf2ScalaFP(n, executorThreads),
       () => perf2Prim(n, executorThreads, ex => new CCAS(ex)),
       () => perf2Prim(n, executorThreads, ex => new CMVar(ex)),
-      () => perf2Prim(n, executorThreads, ex => new CSTM(ex))
+      () => perf2Prim(n, executorThreads, ex => new CSTM(ex)),
+      () => perf2Prim(n, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf2Prim(n, executorThreads, ex => new CCASFixedPromiseLinking(ex))
     )
   }
 
@@ -164,7 +181,24 @@ object Benchmarks extends App {
       () => perf3ScalaFP(n, executorThreads),
       () => perf3Prim(n, executorThreads, ex => new CCAS(ex)),
       () => perf3Prim(n, executorThreads, ex => new CMVar(ex)),
-      () => perf3Prim(n, executorThreads, ex => new CSTM(ex))
+      () => perf3Prim(n, executorThreads, ex => new CSTM(ex)),
+      () => perf3Prim(n, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf3Prim(n, executorThreads, ex => new CCASFixedPromiseLinking(ex))
+    )
+  }
+
+  private def test5(executorThreads: Int): Unit = {
+    val n = Test5N
+    runAll(
+      5,
+      executorThreads,
+      () => (), // TODO Add perf4 for Twitter FP
+      () => (), // TODO Add perf4 for Scala FP
+      () => perf4Prim(n, executorThreads, ex => new CCAS(ex)),
+      () => perf4Prim(n, executorThreads, ex => new CMVar(ex)),
+      () => perf4Prim(n, executorThreads, ex => new CSTM(ex)),
+      () => perf4Prim(n, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf4Prim(n, executorThreads, ex => new CCASFixedPromiseLinking(ex))
     )
   }
 
@@ -183,10 +217,11 @@ object Benchmarks extends App {
     })
   }
 
-  private def runTest1 = runTestForExecutorThreads("Test 1", test1)
-  private def runTest2 = runTestForExecutorThreads("Test 2", test2)
-  private def runTest3 = runTestForExecutorThreads("Test 3", test3)
-  private def runTest4 = runTestForExecutorThreads("Test 4", test4)
+  private def runTest1() = runTestForExecutorThreads("Test 1", test1)
+  private def runTest2() = runTestForExecutorThreads("Test 2", test2)
+  private def runTest3() = runTestForExecutorThreads("Test 3", test3)
+  private def runTest4() = runTestForExecutorThreads("Test 4", test4)
+  private def runTest5() = runTestForExecutorThreads("Test 5", test5)
 
   private def runAllTests {
     runTest1
@@ -409,67 +444,100 @@ object Benchmarks extends App {
     counter.await()
   }
 
-  private def perf1Prim(n: Int, m: Int, k: Int, executorThreads: Int, f: Executor => FP[Int]) {
+  private def perf1Prim(n: Int, m: Int, k: Int, executorThreads: Int, f: Executor => Core[Int]) {
     val counter = new Synchronizer(n * (m + k))
     var ex = getPrimExecutor(executorThreads)
     val promises = n times f(ex)
 
     promises.foreach(p => {
-      m times ex.execute(() => p.onComplete(_ => counter.increment()))
+      m times ex.execute(() => p.onCompleteC(_ => counter.increment()))
       k times ex.execute(() => {
-        p.trySuccess(1)
+        p.tryCompleteC(Success(1))
         counter.increment()
       })
     })
 
     // get ps
-    promises.foreach(_.getP())
+    promises.foreach(_.getC())
 
     counter.await()
   }
 
-  private def perf2Prim(n: Int, executorThreads: Int, f: Executor => FP[Int]) {
+  private def perf2Prim(n: Int, executorThreads: Int, f: Executor => Core[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(executorThreads)
     val promises = n times f(ex)
 
-    def registerOnComplete(rest: Seq[FP[Int]]) {
+    def registerOnCompleteC(rest: Seq[Core[Int]]) {
       if (rest.size > 0) {
-        rest(0).onComplete(_ => {
+        rest(0).onCompleteC(_ => {
           if (rest.size > 1) {
-            rest(1).trySuccess(1)
-            registerOnComplete(rest.tail)
+            rest(1).tryCompleteC(Success(1))
+            registerOnCompleteC(rest.tail)
           }
           counter.increment()
         })
       }
     }
 
-    registerOnComplete(promises)
+    registerOnCompleteC(promises)
 
-    promises(0).trySuccess(1)
+    promises(0).tryCompleteC(Success(1))
     counter.await()
   }
 
-  private def perf3Prim(n: Int, executorThreads: Int, f: Executor => FP[Int]) {
+  private def perf3Prim(n: Int, executorThreads: Int, f: Executor => Core[Int]) {
     val counter = new Synchronizer(n)
     var ex = getPrimExecutor(executorThreads)
     val promises = n times f(ex)
 
-    def registerOnComplete(rest: Seq[FP[Int]]) {
+    def registerOnCompleteC(rest: Seq[Core[Int]]) {
       if (rest.size > 0) {
-        rest(0).onComplete(_ => {
-          if (rest.size > 1) rest(1).trySuccess(1)
+        rest(0).onCompleteC(_ => {
+          if (rest.size > 1) rest(1).tryCompleteC(Success(1))
           counter.increment()
         })
 
-        registerOnComplete(rest.tail)
+        registerOnCompleteC(rest.tail)
       }
     }
 
-    registerOnComplete(promises)
+    registerOnCompleteC(promises)
 
-    promises(0).trySuccess(1)
+    promises(0).tryCompleteC(Success(1))
     counter.await()
+  }
+
+  /**
+    * Creates a chain of promises by linking them with [[tdauth.pepm19.FP.transformWith]] which uses
+    * [[tdauth.pepm19.FP.tryCompleteWith]].
+    * The second promise is completed with the first one, the third with the second one etc.
+    * The transformation uses an already completed promise, so the transformation takes place as soon as the final promise
+    * of the chain is completed.
+    *
+    * We cannot use [[tdauth.pepm19.FP.tryCompleteWith]] directly since neither Scala FP nor Twitter
+    * Util implement promise linking for this method but for `transformWith` for Scala FP and `transform` for Twitter Util.
+    *
+    * This benchmark is similiar to [[https://github.com/scala/scala/blob/2.12.x/test/files/run/t7336.scala t7336]] but without creating an array in the closure or trying to
+    * exceed the memory.
+    * Note that the exhausting memory was due to a bug in the Scala compiler.
+    */
+  def perf4Prim(n: Int, cores: Int, f: Executor => FP[Int]) {
+    var ex = getPrimExecutor(cores)
+
+    def linkPromises(i: Int): FP[Int] = {
+      val successfulP = f(ex)
+      successfulP.trySuccess(10)
+      successfulP.transformWith(_ =>
+        if (i == 0) {
+          val successfulP = f(ex)
+          successfulP.trySuccess(10)
+          successfulP
+        } else linkPromises(i - 1))
+    }
+
+    val p = linkPromises(n)
+    p.getP
+    ex.shutdown
   }
 }

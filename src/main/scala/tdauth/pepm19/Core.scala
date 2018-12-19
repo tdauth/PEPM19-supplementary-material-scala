@@ -60,6 +60,7 @@ trait Core[T] {
       case SingleCallbackEntry(_) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v))
       case Noop =>
+      case _    => throw new RuntimeException("Invalid call!")
     }
 
   /**
