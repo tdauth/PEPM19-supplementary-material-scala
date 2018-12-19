@@ -30,10 +30,14 @@ object Presentation extends App {
   {
     val budgetInEUR = 1000.0
     val x1 = holidayLocationSwitzerland()
-      .flatMap(chf => exchangeRateCHFToEUR().map { _ * chf })
+      .flatMap { chf =>
+        exchangeRateCHFToEUR().map { _ * chf }
+      }
       .filter { _ <= budgetInEUR }
     val x2 = holidayLocationUSA()
-      .flatMap(usd => exchangeRateUSDToEUR().map { _ * usd })
+      .flatMap { usd =>
+        exchangeRateUSDToEUR().map { _ * usd }
+      }
       .filter { _ <= budgetInEUR } // The same for the USA as for Switzerland ...
     val x3 = x1 fallbackTo x2
     x3 foreach bookHoliday
