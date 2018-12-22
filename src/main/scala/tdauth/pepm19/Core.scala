@@ -15,7 +15,7 @@ trait Core[T] {
 
   type State = Either[Try[T], CallbackEntry]
 
-  def newC[S](ex: Executor): Core[S]
+  def newC[S](ex: Executor): Core[S] with FP[S]
 
   /**
     * The executor is passed on the combined futures.

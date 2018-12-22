@@ -10,7 +10,7 @@ class CCAS[T](ex: Executor) extends AtomicReference[Core[T]#State](Right(Noop)) 
 
   override def getExecutorC: Executor = ex
 
-  override def newC[S](ex: Executor): Core[S] = new CCAS[S](ex)
+  override def newC[S](ex: Executor): Core[S] with FP[S] = new CCAS[S](ex)
 
   override def getC(): Try[T] = getResultWithMVar()
 

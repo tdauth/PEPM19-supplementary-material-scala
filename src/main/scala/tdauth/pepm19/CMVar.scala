@@ -15,7 +15,7 @@ class CMVar[T](ex: Executor) extends SyncVar[Core[T]#State] with FP[T] {
 
   override def getExecutorC: Executor = ex
 
-  override def newC[S](ex: Executor): Core[S] = new CMVar[S](ex)
+  override def newC[S](ex: Executor): Core[S] with FP[S] = new CMVar[S](ex)
 
   override def getC(): Try[T] = {
     sig.get

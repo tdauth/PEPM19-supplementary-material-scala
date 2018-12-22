@@ -1,6 +1,6 @@
 package tdauth.pepm19
 
-import java.util.concurrent.{Executor, Executors}
+import java.util.concurrent.Executor
 
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -12,7 +12,15 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   val FirstNumber = 10
   val FirstNumberTimes10 = 100
   val SecondNumber = 11
-  private val executor = Executors.newSingleThreadExecutor()
+
+  /**
+    * Detect blocking combinators by simply using the current thread.
+    */
+  private class CurrentThreadExecutor extends Executor { override def execute(r: Runnable): Unit = { r.run() } }
+  private val executor = new CurrentThreadExecutor
+
+  def getFP: FP[Int]
+  def getExecutor: Executor = executor
 
   // Basic future methods:
   "get " should "return a successful value" in {
@@ -36,7 +44,7 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
   }
 
   // Derived promise methods:
-  "trySuccess" should "should complete a future successfully" in {
+  "trySuccess" should "complete a future successfully" in {
     val p = getFP
     p.trySuccess(FirstNumber) should be(true)
     p.getP() should be(Success(FirstNumber))
@@ -363,7 +371,4 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     p0.tryFail(new RuntimeException("test 0"))
     the[RuntimeException] thrownBy f.getP().get should have message "test 0"
   }
-
-  def getFP: FP[Int]
-  def getExecutor: Executor = executor
 }

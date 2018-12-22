@@ -36,7 +36,7 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
 
   override def getExecutorC: Executor = ex
 
-  override def newC[S](ex: Executor): Core[S] = new CCASPromiseLinking[S](ex)
+  override def newC[S](ex: Executor): Core[S] with FP[S] = new CCASPromiseLinking[S](ex)
 
   override def getC(): Try[T] = getResultWithMVar()
 
@@ -64,14 +64,13 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     val s = get
     s match {
       case LinkedStateTry(_) => false
-      case LinkedStateCallbackEntry(x) => {
+      case LinkedStateCallbackEntry(x) =>
         if (compareAndSet(s, LinkedStateTry(v))) {
           executeEachCallbackWithParent(v, x)
           true
         } else {
           tryCompleteInternal(v)
         }
-      }
       case LinkedStateLink(_) => compressRoot().tryCompleteC(v)
     }
   }

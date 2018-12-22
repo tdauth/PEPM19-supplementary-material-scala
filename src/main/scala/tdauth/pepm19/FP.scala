@@ -18,7 +18,7 @@ trait FP[T] extends Core[T] {
     * We have to use this name since the name `new` which is used in Haskell is a keyword in Scala.
     */
   def newFP[S](executor: Executor): FP[S] =
-    newC[S](executor).asInstanceOf[FP[S]]
+    newC[S](executor)
   def getExecutor: Executor = getExecutorC
 
   // Basic promise methods:
@@ -48,30 +48,30 @@ trait FP[T] extends Core[T] {
   }
   def future[S](v: Try[S]): FP[S] = future_(() => v)
   def onSuccess(f: T => Unit): Unit =
-    onComplete(t => if (t.isSuccess) f.apply(t.get))
+    onComplete(t => if (t.isSuccess) f(t.get))
   def onFail(f: Throwable => Unit): Unit =
-    onComplete(t => if (t.isFailure) f.apply(t.failed.get))
+    onComplete(t => if (t.isFailure) f(t.failed.get))
   def transformWith[S](f: Try[T] => FP[S]): FP[S] = {
     val p = newFP[S](getExecutor)
-    onComplete(t => p.tryCompleteWith(f.apply(t)))
+    onComplete(t => p.tryCompleteWith(f(t)))
     p
   }
   def transform[S](f: Try[T] => S): FP[S] = {
     val p = newFP[S](getExecutor)
     onComplete(t => {
       try {
-        p.trySuccess(f.apply(t))
+        p.trySuccess(f(t))
       } catch {
         case NonFatal(e) => p.tryFail(e)
       }
     })
     p
   }
-  def followedBy[S](f: T => S): FP[S] = transform(t => f.apply(t.get))
+  def followedBy[S](f: T => S): FP[S] = transform(t => f(t.get))
   def followedByWith[S](f: T => FP[S]): FP[S] =
     transformWith(t =>
       try {
-        f.apply(t.get)
+        f(t.get)
       } catch {
         case NonFatal(x) =>
           val p = newFP[S](getExecutor)
@@ -80,7 +80,7 @@ trait FP[T] extends Core[T] {
     })
 
   def guard(f: T => Boolean): FP[T] =
-    followedBy(v => if (!f.apply(v)) throw new PredicateNotFulfilled else v)
+    followedBy(v => if (!f(v)) throw new PredicateNotFulfilled else v)
 
   /**
     * Actually, orElse or fallbackTo in Scala FP.

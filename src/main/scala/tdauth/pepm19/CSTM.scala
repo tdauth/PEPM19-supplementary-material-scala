@@ -11,7 +11,7 @@ class CSTM[T](ex: Executor) extends FP[T] {
 
   override def getExecutorC: Executor = ex
 
-  override def newC[S](ex: Executor): Core[S] = new CSTM[S](ex)
+  override def newC[S](ex: Executor): Core[S] with FP[S] = new CSTM[S](ex)
 
   override def getC(): Try[T] = atomic { implicit txn =>
     state() match {

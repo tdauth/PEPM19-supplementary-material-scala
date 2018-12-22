@@ -29,7 +29,7 @@ object Benchmarks extends App {
   /**
     * Bear in mind that there is always the main thread.
     */
-  val ExecutorThreads = Vector(1, 2, 4, 8)
+  val ExecutorThreads = Vector(1) //Vector(1, 2, 4, 8)
 
   // test 1
   val Test1N = 10000
@@ -44,7 +44,8 @@ object Benchmarks extends App {
   // test 4
   val Test4N = 2000000
   // test 5
-  val Test5N = 100
+  val Test5N = 100000
+  val Test5M = 100
 
   deletePlotFiles()
 
@@ -189,16 +190,17 @@ object Benchmarks extends App {
 
   private def test5(executorThreads: Int): Unit = {
     val n = Test5N
+    val m = Test5M
     runAll(
       5,
       executorThreads,
       () => (), // TODO Add perf4 for Twitter FP
       () => (), // TODO Add perf4 for Scala FP
-      () => perf4Prim(n, executorThreads, ex => new CCAS(ex)),
-      () => perf4Prim(n, executorThreads, ex => new CMVar(ex)),
-      () => perf4Prim(n, executorThreads, ex => new CSTM(ex)),
-      () => perf4Prim(n, executorThreads, ex => new CCASPromiseLinking(ex)),
-      () => perf4Prim(n, executorThreads, ex => new CCASFixedPromiseLinking(ex))
+      () => perf4Prim(n, m, executorThreads, ex => new CCAS(ex)),
+      () => perf4Prim(n, m, executorThreads, ex => new CMVar(ex)),
+      () => perf4Prim(n, m, executorThreads, ex => new CSTM(ex)),
+      () => perf4Prim(n, m, executorThreads, ex => new CCASPromiseLinking(ex)),
+      () => perf4Prim(n, m, executorThreads, ex => new CCASFixedPromiseLinking(ex))
     )
   }
 
@@ -514,30 +516,37 @@ object Benchmarks extends App {
     * The second promise is completed with the first one, the third with the second one etc.
     * The transformation uses an already completed promise, so the transformation takes place as soon as the final promise
     * of the chain is completed.
+    * The final promise is a successful promise which will complete the whole chain.
+    *
+    * Each intermediate promise gets m callbacks which will all be moved to the first promise if it uses promise linking.
     *
     * We cannot use [[tdauth.pepm19.FP.tryCompleteWith]] directly since neither Scala FP nor Twitter
     * Util implement promise linking for this method but for `transformWith` for Scala FP and `transform` for Twitter Util.
     *
     * This benchmark is similiar to [[https://github.com/scala/scala/blob/2.12.x/test/files/run/t7336.scala t7336]] but without creating an array in the closure or trying to
-    * exceed the memory.
+    * exceed the memory and with additional m callbacks.
     * Note that the exhausting memory was due to a bug in the Scala compiler.
     */
-  def perf4Prim(n: Int, cores: Int, f: Executor => FP[Int]) {
+  def perf4Prim(n: Int, m: Int, cores: Int, f: Executor => FP[Int]) {
+    val counter = new Synchronizer(n * m)
     var ex = getPrimExecutor(cores)
 
     def linkPromises(i: Int): FP[Int] = {
       val successfulP = f(ex)
       successfulP.trySuccess(10)
-      successfulP.transformWith(_ =>
+      val result = successfulP.transformWith(_ =>
         if (i == 0) {
           val successfulP = f(ex)
-          successfulP.trySuccess(10)
+          successfulP.trySuccess(1)
           successfulP
         } else linkPromises(i - 1))
+
+      m times result.onComplete(_ => counter.increment())
+      result
     }
 
-    val p = linkPromises(n)
-    p.getP
-    ex.shutdown
+    linkPromises(n)
+
+    counter.await()
   }
 }

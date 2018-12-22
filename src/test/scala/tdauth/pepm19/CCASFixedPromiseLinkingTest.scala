@@ -11,6 +11,17 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest {
   def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor)
   override def getFP: FP[Int] = new FPLinkingType(getExecutor)
 
+  "transformWith with a link" should "create a new successful future" in {
+    val p = getFP
+    val p0 = getFP
+    val s = p.transformWith(_ => p0)
+    p.trySuccess(FirstNumber) shouldEqual true
+    p0.asInstanceOf[FPLinkingType].isLink() shouldEqual true
+    p0.asInstanceOf[FPLinkingType].isLinkTo(s.asInstanceOf[FPLinkingType]) shouldEqual true
+    p0.trySuccess(SecondNumber) shouldEqual true
+    s.getP() should be(Success(SecondNumber))
+  }
+
   "Link" should "link to another promise and be completed by it" in {
     val v = new AtomicBoolean(false)
     val p0 = getFPPromiseLinking
