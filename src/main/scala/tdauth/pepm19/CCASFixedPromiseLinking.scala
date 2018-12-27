@@ -40,20 +40,6 @@ class CCASFixedPromiseLinking[T](ex: Executor) extends AtomicReference[FixedStat
 
   override def getC(): Try[T] = getResultWithMVar()
 
-  override def tryCompleteC(v: Try[T]): Boolean = {
-    val callbackEntryAndSuccessfullyCompleted =
-      CCASFixedPromiseLinking.tryCompleteAndGetCallback[T](this, Noop, v, Set(), false)
-    val callbackEntry = callbackEntryAndSuccessfullyCompleted._1
-    val result = callbackEntryAndSuccessfullyCompleted._2
-    // TODO Take advantage of all collected callbacks and call them at once?
-    if (callbackEntry ne Noop) executeEachCallbackWithParent(v, callbackEntry)
-    result
-  }
-
-  override def onCompleteC(c: Callback): Unit = onCompleteInternal(c)
-
-  override def tryCompleteWith(other: FP[T]): Unit = tryCompleteWithInternal(other)
-
   // TODO Add @tailrec somehow with parent entry
   private def executeEachCallbackWithParent(v: Try[T], callbacks: CallbackEntry): Unit =
     callbacks match {
@@ -68,6 +54,38 @@ class CCASFixedPromiseLinking[T](ex: Executor) extends AtomicReference[FixedStat
         executeEachCallbackWithParent(v, right)
       }
     }
+
+  // TODO Add @tailrec somehow with parent entry
+  private def executeAllCallbacksWithParent(v: Try[T], callbacks: CallbackEntry): Unit =
+    callbacks match {
+      case LinkedCallbackEntry(_, prev) =>
+        callbacks.asInstanceOf[LinkedCallbackEntry[T]].c(v)
+        executeAllCallbacksWithParent(v, prev)
+      case SingleCallbackEntry(_) =>
+        callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v)
+      case Noop =>
+      case ParentCallbackEntry(left, right) => {
+        executeAllCallbacksWithParent(v, left)
+        executeAllCallbacksWithParent(v, right)
+      }
+    }
+
+  private def tryCompleteExecuteAllTogether(v: Try[T]) = {
+    val callbackEntryAndSuccessfullyCompleted =
+      CCASFixedPromiseLinking.tryCompleteAndGetEachCallback[T](this, Noop, v, Set(), false)
+    val result = callbackEntryAndSuccessfullyCompleted._1
+    val callbackEntry = callbackEntryAndSuccessfullyCompleted._2
+    if (callbackEntry ne Noop) getExecutorC.execute(() => executeAllCallbacksWithParent(v, callbackEntry))
+    result
+  }
+
+  override def tryCompleteC(v: Try[T]): Boolean = tryCompleteExecuteAllTogether(v)
+// TODO Execute all together or just each one?
+  //CCASFixedPromiseLinking.tryCompleteAndExecuteEachCallback(this, v, Set[Self](), false)
+
+  override def onCompleteC(c: Callback): Unit = onCompleteInternal(c)
+
+  override def tryCompleteWith(other: FP[T]): Unit = tryCompleteWithInternal(other)
 
   @inline @tailrec private def onCompleteInternal(c: Callback): Unit = {
     val s = get
@@ -160,57 +178,88 @@ class CCASFixedPromiseLinking[T](ex: Executor) extends AtomicReference[FixedStat
 
 object CCASFixedPromiseLinking {
 
-  /**
-    * Tries to the promise and returns its callback entry.
-    * It collects all callback entries from the rest recursively and returns the final parent callback entry.
-    * @param current The current promise which is tried to complete and to get the callbacks from.
-    * @param currentCallbackEntry The current callback entry which is linked to other callbacks with [[ParentCallbackEntry]] except it is [[Noop]].
-    * @param v The result value.
-    * @param rest The remaining promises which should be completed by the same result value.
-    * @param successfullyCompletedFirst The flag which is set to true if the first promise is completed successfully.
-    * @return Returns the top parent callback entry from the collection of all callbacks (which can be Noop) and a flag whether at least the first passed promise has been completed successfully. The flag is required for the top level call from [[tryCompleteC]].
-    * TODO Simplify but keep @tailrec!
-    * TODO Endless call when a link links to an empty callback!
-    */
-  @inline @tailrec private final def tryCompleteAndGetCallback[T](current: CCASFixedPromiseLinking[T]#Self,
-                                                                  currentCallbackEntry: CallbackEntry,
-                                                                  v: Try[T],
-                                                                  rest: Set[CCASFixedPromiseLinking[T]#Self],
-                                                                  successfullyCompletedFirst: Boolean): (CallbackEntry, Boolean) = {
+  @inline @tailrec private final def tryCompleteAndExecuteEachCallback[T](current: CCASFixedPromiseLinking[T]#Self,
+                                                                          v: Try[T],
+                                                                          rest: Set[CCASFixedPromiseLinking[T]#Self],
+                                                                          successfullyCompletedFirst: Boolean): Boolean = {
     val s = current.get()
     s match {
       case FixedStateTry(_) =>
-        if (!rest.isEmpty) tryCompleteAndGetCallback(rest.head, currentCallbackEntry, v, rest.tail, successfullyCompletedFirst)
-        else (currentCallbackEntry, successfullyCompletedFirst)
-      case FixedStateCallbackEntry(x) =>
+        if (!rest.isEmpty) { tryCompleteAndExecuteEachCallback(rest.head, v, rest.tail, successfullyCompletedFirst) } else { successfullyCompletedFirst }
+      case FixedStateCallbackEntry(c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
-          val updatedCurrentCallbackEntry = if (currentCallbackEntry ne Noop) ParentCallbackEntry(x, currentCallbackEntry) else x
-
+          current.executeEachCallbackWithParent(v, c)
           // The first successful compareAndSet must be the first promise, therefore return true from here!
-          if (!rest.isEmpty) { tryCompleteAndGetCallback(rest.head, updatedCurrentCallbackEntry, v, rest.tail, true) } else {
-            (updatedCurrentCallbackEntry, true)
+          if (!rest.isEmpty) { tryCompleteAndExecuteEachCallback(rest.head, v, rest.tail, true) } else {
+            true
           }
-        } else { tryCompleteAndGetCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst) }
+        } else { tryCompleteAndExecuteEachCallback(current, v, rest, successfullyCompletedFirst) }
       case FixedStateLink(links, c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
-          val updatedCurrentCallbackEntry = if (currentCallbackEntry ne Noop) ParentCallbackEntry(c, currentCallbackEntry) else c
+          current.executeEachCallbackWithParent(v, c)
           val updatedRest = rest ++ links
-          // TODO updated rest should never be empty since links should never be empty
-          // The first successful compareAndSet must be the first promise, therefore return true from here!
-          if (!updatedRest.isEmpty) tryCompleteAndGetCallback(updatedRest.head, updatedCurrentCallbackEntry, v, updatedRest.tail, true)
-          else (updatedCurrentCallbackEntry, true)
+          /*
+           * Updated rest should never be empty since links should never be empty.
+           * The first successful compareAndSet must be the first promise, therefore return true from here!
+           */
+          tryCompleteAndExecuteEachCallback(updatedRest.head, v, updatedRest.tail, true)
         } else {
-          tryCompleteAndGetCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
+          tryCompleteAndExecuteEachCallback(current, v, rest, successfullyCompletedFirst)
         }
       case FixStateLinkWithoutCallback(links) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
           val updatedRest = rest ++ links
-          // TODO updated rest should never be empty since links should never be empty
-          // The first successful compareAndSet must be the first promise, therefore return true from here!
-          if (!updatedRest.isEmpty) tryCompleteAndGetCallback(updatedRest.head, currentCallbackEntry, v, updatedRest.tail, true)
-          else (currentCallbackEntry, true)
+          /*
+           * Updated rest should never be empty since links should never be empty-
+           * The first successful compareAndSet must be the first promise, therefore return true from here!
+           */
+          tryCompleteAndExecuteEachCallback(updatedRest.head, v, updatedRest.tail, true)
         } else {
-          tryCompleteAndGetCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
+          tryCompleteAndExecuteEachCallback(current, v, rest, successfullyCompletedFirst)
+        }
+    }
+  }
+
+  @inline @tailrec private final def tryCompleteAndGetEachCallback[T](current: CCASFixedPromiseLinking[T]#Self,
+                                                                      currentCallbackEntry: CallbackEntry,
+                                                                      v: Try[T],
+                                                                      rest: Set[CCASFixedPromiseLinking[T]#Self],
+                                                                      successfullyCompletedFirst: Boolean): (Boolean, CallbackEntry) = {
+    val s = current.get()
+    s match {
+      case FixedStateTry(_) =>
+        if (!rest.isEmpty) tryCompleteAndGetEachCallback(rest.head, currentCallbackEntry, v, rest.tail, successfullyCompletedFirst)
+        else { (successfullyCompletedFirst, currentCallbackEntry) }
+      case FixedStateCallbackEntry(c) =>
+        if (current.compareAndSet(s, FixedStateTry(v))) {
+          val updatedCurrentCallbackEntry = ParentCallbackEntry(c, currentCallbackEntry)
+          // The first successful compareAndSet must be the first promise, therefore return true from here!
+          if (!rest.isEmpty) { tryCompleteAndGetEachCallback(rest.head, updatedCurrentCallbackEntry, v, rest.tail, true) } else {
+            (true, updatedCurrentCallbackEntry)
+          }
+        } else { tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst) }
+      case FixedStateLink(links, c) =>
+        if (current.compareAndSet(s, FixedStateTry(v))) {
+          current.executeEachCallbackWithParent(v, c)
+          val updatedRest = rest ++ links
+          /*
+           * Updated rest should never be empty since links should never be empty-
+           * The first successful compareAndSet must be the first promise, therefore return true from here!
+           */
+          tryCompleteAndGetEachCallback(updatedRest.head, currentCallbackEntry, v, updatedRest.tail, true)
+        } else {
+          tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
+        }
+      case FixStateLinkWithoutCallback(links) =>
+        if (current.compareAndSet(s, FixedStateTry(v))) {
+          val updatedRest = rest ++ links
+          /*
+           * Updated rest should never be empty since links should never be empty-
+           * The first successful compareAndSet must be the first promise, therefore return true from here!
+           */
+          tryCompleteAndGetEachCallback(updatedRest.head, currentCallbackEntry, v, updatedRest.tail, true)
+        } else {
+          tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
         }
     }
   }

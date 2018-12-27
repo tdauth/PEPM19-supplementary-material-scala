@@ -46,6 +46,7 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
 
   override def tryCompleteWith(other: FP[T]): Unit = tryCompleteWithInternal(other)
 
+  // TODO Add @tailrec somehow with parent entry
   private def executeEachCallbackWithParent(v: Try[T], callbacks: CallbackEntry): Unit =
     callbacks match {
       case LinkedCallbackEntry(_, prev) =>
@@ -126,7 +127,7 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     * On the way through the chain it sets all links to the root promise.
     * This should reduce the number of intermediate promises in the chain which are all the same and make them available for the garbage collection
     * if they are not refered anywhere else except in the chain of links.
-    * TODO #32 Split into the three methods `compressedRoot`, `root` and `link` like Scala 12.x does to allow @tailrec?
+    * TODO Split into the three methods `compressedRoot`, `root` and `link` like Scala 12.x does to allow @tailrec?
     */
   @inline private def compressRoot(): Self = {
     val s = get
