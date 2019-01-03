@@ -70,12 +70,19 @@ class CCASFixedPromiseLinking[T](ex: Executor) extends AtomicReference[FixedStat
       }
     }
 
+  /**
+    * Collects all callbacks including those of promises refered by links and executes them.
+    * @param v The result value each callback gets as parameter.
+    * @return Returns whether the promise has been completed by this call or not.
+    */
   private def tryCompleteExecuteAllTogether(v: Try[T]) = {
     val callbackEntryAndSuccessfullyCompleted =
       CCASFixedPromiseLinking.tryCompleteAndGetEachCallback[T](this, Noop, v, Set(), false)
     val result = callbackEntryAndSuccessfullyCompleted._1
-    val callbackEntry = callbackEntryAndSuccessfullyCompleted._2
-    if (callbackEntry ne Noop) getExecutorC.execute(() => executeAllCallbacksWithParent(v, callbackEntry))
+    if (result) {
+      val callbackEntry = callbackEntryAndSuccessfullyCompleted._2
+      if (callbackEntry ne Noop) getExecutorC.execute(() => executeAllCallbacksWithParent(v, callbackEntry))
+    }
     result
   }
 
@@ -240,13 +247,13 @@ object CCASFixedPromiseLinking {
         } else { tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst) }
       case FixedStateLink(links, c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
-          current.executeEachCallbackWithParent(v, c)
+          val updatedCurrentCallbackEntry = ParentCallbackEntry(c, currentCallbackEntry)
           val updatedRest = rest ++ links
           /*
            * Updated rest should never be empty since links should never be empty-
            * The first successful compareAndSet must be the first promise, therefore return true from here!
            */
-          tryCompleteAndGetEachCallback(updatedRest.head, currentCallbackEntry, v, updatedRest.tail, true)
+          tryCompleteAndGetEachCallback(updatedRest.head, updatedCurrentCallbackEntry, v, updatedRest.tail, true)
         } else {
           tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
         }
