@@ -5,11 +5,11 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable.ListBuffer
 import scala.util.Success
 
-class CCASFixedPromiseLinkingTest extends AbstractFPTest {
+class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
   type FPLinkingType = CCASFixedPromiseLinking[Int]
 
-  def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor)
-  override def getFP: FP[Int] = new FPLinkingType(getExecutor)
+  def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor, 1)
+  override def getFP: FP[Int] = new FPLinkingType(getExecutor, 1)
 
   "transformWith with a link" should "create a new successful future" in {
     val p = getFP
@@ -119,7 +119,7 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest {
         // In this solution there is no compression. All links still link to the next element. Only the first link links to p.
         val expectLinkToP = if (c < n) { false } else { true }
         l.isLinkTo(p) shouldEqual expectLinkToP
-        if (links.tail ne null) assertUncompletedChain(links.tail, c - 1)
+        if (links.size > 1) assertUncompletedChain(links.tail, c - 1)
       }
     }
 
@@ -140,7 +140,7 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest {
         l.isLink() shouldEqual false
         l.isListOfCallbacks() shouldEqual false
         l.getP shouldEqual Success(10)
-        if (links.tail ne null) assertCompletedChain(links.tail)
+        if (links.size > 1) assertCompletedChain(links.tail)
       }
     }
 

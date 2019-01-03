@@ -8,7 +8,7 @@ import scala.collection.immutable.List
 import scala.concurrent.SyncVar
 import scala.util.Success
 
-abstract class AbstractFPTest extends FlatSpec with Matchers {
+abstract class AbstractFPTest(checkExactCallbackOrder: Boolean) extends FlatSpec with Matchers {
   val FirstNumber = 10
   val FirstNumberTimes10 = 100
   val SecondNumber = 11
@@ -136,7 +136,15 @@ abstract class AbstractFPTest extends FlatSpec with Matchers {
     p.trySuccess(FirstNumber) should be(true)
     l.get
     val finalResult = s.get
-    finalResult should be(List(FirstNumber, 9, 8, 7, 6, 5, 4, 3, 2, 1))
+    val expectedResult = List(FirstNumber, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+    if (checkExactCallbackOrder) {
+      finalResult should be(expectedResult)
+    } else {
+      finalResult.size should be(expectedResult.size)
+      expectedResult foreach { x =>
+        finalResult.contains(x) should be(true)
+      }
+    }
   }
 
   /**

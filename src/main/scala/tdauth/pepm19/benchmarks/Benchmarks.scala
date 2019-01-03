@@ -73,13 +73,13 @@ object Benchmarks extends App {
   // test 4
   val Test4N = 2000000
   // test 5
-  val Test5N = 100
-  val Test5M = 100000
+  val Test5N = 80
+  val Test5M = 80000
 
   deletePlotAllFiles()
 
   printf("We have %d available processors.\n", Runtime.getRuntime().availableProcessors())
-  runAllTests
+  runAllTests()
 
   private implicit def intWithTimes[T](n: Int) = new {
     def times(f: => T) = 1 to n map { _ =>
@@ -201,8 +201,13 @@ object Benchmarks extends App {
     val m = Test5M
     val testNumber = 5
     runTest(testNumber, executorThreads, new TestTwitterUtil(() => perf4TwitterUtil(n, m, executorThreads)))
-    runTest(testNumber, executorThreads, new TestPrimCAS(() => perf4Prim(n, m, executorThreads, ex => new CCAS(ex))))
-    runTest(testNumber, executorThreads, new TestPrimCASFixedPromiseLinking(() => perf4Prim(n, m, executorThreads, ex => new CCASFixedPromiseLinking(ex))))
+    runTest(testNumber, executorThreads, new TestPrimCAS(() => perf4Prim(n, m, executorThreads, (ex, maxAggregatedCallbacks) => new CCAS(ex))))
+    runTest(
+      testNumber,
+      executorThreads,
+      new TestPrimCASFixedPromiseLinking(
+        () => perf4Prim(n, m, executorThreads, (ex, maxAggregatedCallbacks) => new CCASFixedPromiseLinking[Int](ex, maxAggregatedCallbacks)))
+    )
   }
 
   private def runTestForExecutorThreads(name: String, t: Int => Unit) {
@@ -226,7 +231,7 @@ object Benchmarks extends App {
   private def runTest4() = runTestForExecutorThreads("Test 4", test4)
   private def runTest5() = runTestForExecutorThreads("Test 5", test5)
 
-  private def runAllTests {
+  private def runAllTests() {
     runTest1()
     runTest2()
     runTest3()
@@ -534,13 +539,16 @@ object Benchmarks extends App {
     counter.await()
   }
 
-  private def perf4Prim(n: Int, m: Int, executorThreads: Int, f: Executor => FP[Int]) {
+  private def perf4Prim(n: Int, m: Int, executorThreads: Int, f: (Executor, Int) => FP[Int]) {
+    val k = m / executorThreads
     val counter = new Synchronizer(n * m)
     var ex = getPrimExecutor(executorThreads, "perf 4 (n: %d,  m: %d, executorThreads: %d)".format(n, m, executorThreads))
-    val promises = n times f(ex)
+    val promises = n times f(ex, k)
 
     def linkPromises(promises: Seq[FP[Int]]) {
-      m times promises(0).onComplete(_ => counter.increment())
+      m times promises(0).onComplete(_ => {
+        counter.increment()
+      })
       if (promises.size == 1) {
         promises(0).trySuccess(1)
       } else {

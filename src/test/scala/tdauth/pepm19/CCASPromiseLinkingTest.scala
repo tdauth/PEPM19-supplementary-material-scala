@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable.ListBuffer
 import scala.util.Success
 
-class CCASPromiseLinkingTest extends AbstractFPTest {
+class CCASPromiseLinkingTest extends AbstractFPTest(true) {
   type FPLinkingType = CCASPromiseLinking[Int]
 
   def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor)
@@ -101,7 +101,7 @@ class CCASPromiseLinkingTest extends AbstractFPTest {
         l.isLink shouldEqual true
         // The compression lets all links directly link to p.
         l.isLinkTo(p) shouldEqual true
-        if (links.tail ne null) assertUncompletedChain(links.tail)
+        if (links.size > 1) assertUncompletedChain(links.tail)
       }
     }
 
@@ -121,7 +121,7 @@ class CCASPromiseLinkingTest extends AbstractFPTest {
         l.isLinkTo(p) shouldEqual true
         l.isReady shouldEqual true
         l.getP shouldEqual Success(10)
-        if (links.tail ne null) assertCompletedChain(links.tail)
+        if (links.size > 1) assertCompletedChain(links.tail)
       }
     }
 

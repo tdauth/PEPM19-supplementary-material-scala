@@ -16,7 +16,7 @@ mainClass in (Compile, run) := Some("tdauth.pepm19.benchmarks.Benchmarks")
 // set the main class for packaging the main jar
 mainClass in (Compile, packageBin) := Some("tdauth.pepm19.benchmarks.Benchmarks")
 
-coverageExcludedPackages := "tdauth.pepm19.benchmarks.*;tdauth.pepm19.programtransformations.*"
+coverageExcludedPackages := "tdauth.pepm19.benchmarks.*;tdauth.pepm19.programtransformations.*;tdauth.pepm19.presentation.*"
 
 resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 

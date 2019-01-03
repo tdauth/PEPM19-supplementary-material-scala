@@ -2,52 +2,61 @@ package tdauth.pepm19.presentation
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success}
+import scala.util.Try
 
 object Presentation extends App {
 
-  // Futures:
+  // Scala Futures:
   {
-    val f = Future { 10 } // Asynchronous task ...
-    f foreach println
+    val f = Future { getHotel() }
+    // ...
+    f onComplete { hotel =>
+      bookHotel(hotel)
+    }
+    // ...
+    f onComplete { hotel =>
+      informFriends(hotel)
+    }
   }
 
-  // Promises:
+  // Scala Promises:
   {
-    val p = Promise[Int]
-    p.future foreach println
+    val p = Promise[Hotel]
+    // ...
+    p.future onComplete { hotel =>
+      bookHotel(hotel)
+    }
+    // ...
 
     // Thread 1:
     global.execute(() => {
-      p trySuccess 10
+      p trySuccess HotelA
     })
     // Thread 2:
     global.execute(() => {
-      p trySuccess 11
+      p trySuccess HotelB
     })
   }
 
+  // Extended Example: Holiday Planning in Scala
   {
-    val budgetInEUR = 1000.0
-    val x1 = holidayLocationSwitzerland()
-      .flatMap { chf =>
-        exchangeRateCHFToEUR().map { _ * chf }
-      }
-      .filter { _ <= budgetInEUR }
-    val x2 = holidayLocationUSA()
-      .flatMap { usd =>
-        exchangeRateUSDToEUR().map { _ * usd }
-      }
-      .filter { _ <= budgetInEUR } // The same for the USA as for Switzerland ...
-    val x3 = x1 fallbackTo x2
-    x3 foreach bookHoliday
+    val switzerland = Future { getHotelSwitzerland() }
+    val usa = Future { getHotelUSA() }
+    val hotel = switzerland fallbackTo usa
+    hotel onComplete { hotel =>
+      bookHotel(hotel)
+    }
 
-    Await.ready(x3, Duration.Inf)
+    Await.ready(hotel, Duration.Inf)
   }
 
-  private def holidayLocationSwitzerland() = Future { 400.0 }
-  private def holidayLocationUSA() = Future { 200.0 }
-  private def exchangeRateCHFToEUR() = Future { 0.88 }
-  private def exchangeRateUSDToEUR() = Future { 0.87 }
-  private def bookHoliday(eur: Double) { println(s"Booked for $eur EUR") }
+  sealed trait Hotel
+  case object HotelA extends Hotel
+  case object HotelB extends Hotel
+
+  private def getHotel(): Hotel = HotelA
+  private def bookHotel(hotel: Try[Hotel]) = println(s"Book hotel $hotel.")
+  private def informFriends(hotel: Try[Hotel]) = println(s"Dear, friends, I have booked hotel $hotel.")
+  private def getHotelSwitzerland() = HotelA
+  private def getHotelUSA() = HotelB
 }
