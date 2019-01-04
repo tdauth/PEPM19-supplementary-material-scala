@@ -25,7 +25,7 @@ case class LinkedStateLink[T](l: CCASPromiseLinking[T]) extends LinkedState
   *
   * Therefore, every `tryCompleteWith` call has to compress the chain and make the link directly link to f0 which is the root promise.
   *
-  * This implementation is more similiar to Scala FP 2.12.x than to 2.13.x.
+  * This implementation is more similar to Scala FP 2.12.x than to 2.13.x.
   * See [[https://github.com/scala/scala/blob/2.12.x/src/library/scala/concurrent/impl/Promise.scala DefaultPromise.scala]].
   * Scala FP 2.12.x's implementation has been influenced by Twitter Util's implementation.
   * See [[https://github.com/twitter/util/blob/master/util-core/src/main/scala/com/twitter/util/Promise.scala Twitter promise implementation]].
@@ -55,10 +55,9 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
       case SingleCallbackEntry(_) =>
         getExecutorC.execute(() => callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v))
       case Noop =>
-      case ParentCallbackEntry(left, right) => {
+      case ParentCallbackEntry(left, right) =>
         executeEachCallbackWithParent(v, left)
         executeEachCallbackWithParent(v, right)
-      }
     }
 
   @inline @tailrec private def tryCompleteInternal(v: Try[T]): Boolean = {
@@ -95,11 +94,11 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
       val s = o.get
       s match {
         case LinkedStateTry(x) => tryComplete(x.asInstanceOf[Try[T]])
-        case LinkedStateCallbackEntry(x) => {
+        case LinkedStateCallbackEntry(x) =>
           val root = compressRoot()
           // Replace the callback list by a link to the root of the target and prepend the callbacks to the root.
           if (!o.compareAndSet(s, LinkedStateLink(root))) tryCompleteWithInternal(other) else root.onComplete(x)
-        }
+
         case LinkedStateLink(_) => tryCompleteWithInternal(o.compressRoot())
       }
     } else {
@@ -126,7 +125,7 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     * Checks for the root promise in a linked chain which is not a link itself but has stored a list of callbacks or is already completed.
     * On the way through the chain it sets all links to the root promise.
     * This should reduce the number of intermediate promises in the chain which are all the same and make them available for the garbage collection
-    * if they are not refered anywhere else except in the chain of links.
+    * if they are not referred anywhere else except in the chain of links.
     * TODO Split into the three methods `compressedRoot`, `root` and `link` like Scala 12.x does to allow @tailrec?
     */
   @inline private def compressRoot(): Self = {
@@ -134,10 +133,9 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     s match {
       case LinkedStateTry(_)           => this
       case LinkedStateCallbackEntry(_) => this
-      case LinkedStateLink(l) => {
+      case LinkedStateLink(l) =>
         val root = l.asInstanceOf[Self].compressRoot()
         if (!compareAndSet(s, LinkedStateLink(root))) compressRoot() else root
-      }
     }
   }
 

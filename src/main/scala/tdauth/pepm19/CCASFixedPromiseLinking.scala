@@ -19,7 +19,7 @@ case class LinkedAggregate(c: CallbackEntry, prev: AggregatedCallback) extends A
 case object NoopAggregated extends AggregatedCallback
 
 /**
-  * Similiar to [[CCASPromiseLinking]] but does not simply move all callbacks to the root promise.
+  * Similar to [[CCASPromiseLinking]] but does not simply move all callbacks to the root promise.
   * It creates a link to the target promise and keeps the current list of callbacks in this link.
   * This prevents all callbacks from being submitted if only one single link is completed.
   * The implementation does still allow one link to link to multiple promises.
@@ -57,13 +57,13 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
       case SingleCallbackEntry(_) =>
         callbacks.asInstanceOf[SingleCallbackEntry[T]].c(v)
       case Noop =>
-      case ParentCallbackEntry(left, right) => {
+      case ParentCallbackEntry(left, right) =>
         executeAllCallbacksWithParent(v, left)
         executeAllCallbacksWithParent(v, right)
-      }
     }
 
   // TODO check if result is Noop, too!
+  // TODO Add @tailrec somehow with parent entry
   private def aggregateCallbacks(currentCallbacks: CallbackEntry,
                                  current: CallbackEntry,
                                  currentCounter: Int,
@@ -95,28 +95,26 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
            result)
         }
       case Noop => (current, currentCounter, result)
-      case ParentCallbackEntry(left, right) => {
+      case ParentCallbackEntry(left, right) =>
         val (updatedCurrent, updatedCounter, updatedResult) = aggregateCallbacks(left, current, currentCounter, result, max)
         aggregateCallbacks(right, updatedCurrent, updatedCounter, updatedResult, max)
-      }
     }
 
-  @tailrec @inline private def executeAggregated(v: Try[T], c: AggregatedCallback): Unit = c match {
+  @tailrec @inline private def executeAggregated(v: Try[T], a: AggregatedCallback): Unit = a match {
     case SingleAggregate(c) => executeAllCallbacksWithParent(v, c)
-    case LinkedAggregate(c, prev) => {
+    case LinkedAggregate(c, prev) =>
       executeAllCallbacksWithParent(v, c)
       executeAggregated(v, prev)
-    }
     case NoopAggregated =>
   }
 
-  @inline private def aggregateAndExecuteAllCallbacks(v: Try[T], currentCallbacks: CallbackEntry) = {
-    val (updatedCurrent, updatedCounter, updatedResult) = aggregateCallbacks(currentCallbacks, Noop, 0, NoopAggregated, maxAggregatedCallbacks)
+  @inline private def aggregateAndExecuteAllCallbacks(v: Try[T], currentCallbacks: CallbackEntry) {
+    val (updatedCurrent, _, updatedResult) = aggregateCallbacks(currentCallbacks, Noop, 0, NoopAggregated, maxAggregatedCallbacks)
     executeAggregated(v, LinkedAggregate(updatedCurrent, updatedResult)) // TODO Check for Noop
   }
 
   /**
-    * Collects all callbacks including those of promises refered by links and executes them.
+    * Collects all callbacks including those of promises referred by links and executes them.
     * @param v The result value each callback gets as parameter.
     * @return Returns whether the promise has been completed by this call or not.
     */
@@ -151,7 +149,7 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
 
   /**
     * If other is this type, this will be added to the set of links of other.
-    * @param other
+    * Otherwise, the default implementation of [[FP#tryCompleteWith]] will be used.
     */
   @inline @tailrec private final def tryCompleteWithInternal(other: FP[T]): Unit = {
     if (other.isInstanceOf[Self]) {
@@ -172,7 +170,7 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
         case FixStateLinkWithoutCallback(links) => if (!o.compareAndSet(s, FixStateLinkWithoutCallback[T](links + this))) tryCompleteWithInternal(other)
       }
     } else {
-      other.onComplete(tryComplete)
+      super.tryCompleteWith(other)
     }
   }
 
@@ -236,13 +234,14 @@ object CCASFixedPromiseLinking {
     val s = current.get()
     s match {
       case FixedStateTry(_) =>
-        if (!rest.isEmpty) tryCompleteAndGetEachCallback(rest.head, currentCallbackEntry, v, rest.tail, successfullyCompletedFirst)
-        else { (successfullyCompletedFirst, currentCallbackEntry) }
+        if (rest.nonEmpty) { tryCompleteAndGetEachCallback(rest.head, currentCallbackEntry, v, rest.tail, successfullyCompletedFirst) } else {
+          (successfullyCompletedFirst, currentCallbackEntry)
+        }
       case FixedStateCallbackEntry(c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
           val updatedCurrentCallbackEntry = ParentCallbackEntry(c, currentCallbackEntry)
           // The first successful compareAndSet must be the first promise, therefore return true from here!
-          if (!rest.isEmpty) { tryCompleteAndGetEachCallback(rest.head, updatedCurrentCallbackEntry, v, rest.tail, true) } else {
+          if (rest.nonEmpty) { tryCompleteAndGetEachCallback(rest.head, updatedCurrentCallbackEntry, v, rest.tail, true) } else {
             (true, updatedCurrentCallbackEntry)
           }
         } else { tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst) }

@@ -96,7 +96,7 @@ class CCASPromiseLinkingTest extends AbstractFPTest(true) {
     finalLink.isLinkTo(p) shouldEqual true
 
     def assertUncompletedChain(links: ListBuffer[FPLinkingType]): Unit = {
-      if (!links.isEmpty) {
+      if (links.nonEmpty) {
         val l = links.head
         l.isLink shouldEqual true
         // The compression lets all links directly link to p.
@@ -115,7 +115,7 @@ class CCASPromiseLinkingTest extends AbstractFPTest(true) {
     counter.get() shouldEqual n
 
     def assertCompletedChain(links: ListBuffer[FPLinkingType]): Unit = {
-      if (!links.isEmpty) {
+      if (links.nonEmpty) {
         val l = links.head
         l.isLink shouldEqual true
         l.isLinkTo(p) shouldEqual true

@@ -7,7 +7,7 @@ import scala.util.Try
 
 class CSTM[T](ex: Executor) extends FP[T] {
 
-  val state = Ref[State](Right(Noop))
+  private val state = Ref[State](Right(Noop))
 
   override def getExecutorC: Executor = ex
 
@@ -16,13 +16,13 @@ class CSTM[T](ex: Executor) extends FP[T] {
   override def getC(): Try[T] = atomic { implicit txn =>
     state() match {
       case Left(x)  => x
-      case Right(x) => retry
+      case Right(_) => retry
     }
   }
 
   override def tryCompleteC(v: Try[T]): Boolean = atomic { implicit txn =>
     state() match {
-      case Left(x) => false
+      case Left(_) => false
       case Right(x) =>
         state() = Left(v)
         executeEachCallback(v, x)
