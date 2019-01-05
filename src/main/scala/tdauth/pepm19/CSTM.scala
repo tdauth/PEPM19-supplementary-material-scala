@@ -26,14 +26,12 @@ class CSTM[T](ex: Executor) extends FP[T] {
         case Left(_) => None
         case Right(x) =>
           state() = Left(v)
-          // TODO Could the transaction still fail after this assignment? If so, we need to call the callbacks outside of the transaction.
           Some(x)
       }
     }
 
     /*
-     * It is important to execute the callbacks outside of the transaction to prevent multiple calls of the callbacks.
-     * TODO Can the transaction even fail after setting the result value state()? Otherwise, this is not necessary.
+     * It is important to execute the callbacks outside of the transaction to prevent multiple calls of the callbacks when the transaction fails.
      */
     callbacks match {
       case None => false
@@ -55,8 +53,7 @@ class CSTM[T](ex: Executor) extends FP[T] {
       }
 
     /*
-     * It is important to execute the callback outside of the transaction to prevent multiple calls of the callback.
-     * TODO Can the transaction even fail after state() is Left? Otherwise, this is not necessary.
+     * It is important to execute the callback outside of the transaction to prevent multiple calls of the callback when the transaction fails.
      */
     result match {
       case None    =>
