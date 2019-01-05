@@ -20,8 +20,8 @@ class CSTM[T](ex: Executor) extends FP[T] {
     }
   }
 
-  override def tryCompleteC(v: Try[T]): Boolean = {
-    val callbacks = atomic { implicit txn =>
+  override def tryCompleteC(v: Try[T]): Boolean =
+    atomic { implicit txn =>
       state() match {
         case Left(_) => None
         case Right(x) =>
@@ -29,35 +29,29 @@ class CSTM[T](ex: Executor) extends FP[T] {
           Some(x)
       }
     }
-
     /*
      * It is important to execute the callbacks outside of the transaction to prevent multiple calls of the callbacks when the transaction fails.
-     */
-    callbacks match {
+     */ match {
       case None => false
       case Some(x) =>
         executeEachCallback(v, x)
         true
     }
-  }
 
-  override def onCompleteC(c: Callback): Unit = {
-    val result =
-      atomic { implicit txn =>
-        state() match {
-          case Left(x) => Some(x)
-          case Right(x) =>
-            state() = Right(prependCallback(x, c))
-            None
-        }
+  override def onCompleteC(c: Callback): Unit =
+    atomic { implicit txn =>
+      state() match {
+        case Left(x) => Some(x)
+        case Right(x) =>
+          state() = Right(prependCallback(x, c))
+          None
       }
-
+    }
     /*
-     * It is important to execute the callback outside of the transaction to prevent multiple calls of the callback when the transaction fails.
-     */
-    result match {
+     * The result will never change once it is set, so we could execute the callback inside of the transaction theoretically.
+     * However, we want to keep the transaction as small as possible.
+     */ match {
       case None    =>
       case Some(x) => executeCallback(x, c)
     }
-  }
 }
