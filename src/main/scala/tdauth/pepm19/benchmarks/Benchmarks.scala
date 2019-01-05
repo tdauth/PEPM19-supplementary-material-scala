@@ -260,6 +260,7 @@ object Benchmarks extends App {
     def increment() {
       lock.lock()
       try {
+        assert(counter < max, s"$counter is already equal to $max")
         counter = counter + 1
         condition.signal()
       } finally {
@@ -278,7 +279,7 @@ object Benchmarks extends App {
           lock.unlock()
         }
       } while (notFull)
-      assert(counter == max)
+      assert(counter == max, s"$counter is not equal to $max")
     }
   }
 
