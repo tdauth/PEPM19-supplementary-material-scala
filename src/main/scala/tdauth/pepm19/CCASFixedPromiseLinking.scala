@@ -11,7 +11,7 @@ case class FixedStateTry[T](t: Try[T]) extends FixedState[T]
 case class FixedStateCallbackEntry[T](c: CallbackEntry) extends FixedState[T]
 case class FixedStateLink[T](links: Set[CCASFixedPromiseLinking[T]], c: CallbackEntry) extends FixedState[T]
 // This case class helps to reduce the [[Noop]] callback entries.
-case class FixStateLinkWithoutCallback[T](links: Set[CCASFixedPromiseLinking[T]]) extends FixedState[T]
+case class FixedStateLinkWithoutCallback[T](links: Set[CCASFixedPromiseLinking[T]]) extends FixedState[T]
 
 sealed trait AggregatedCallback
 case class SingleAggregate(c: CallbackEntry) extends AggregatedCallback
@@ -44,7 +44,7 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
 
   override def getExecutorC: Executor = ex
 
-  override def newC[S](ex: Executor): Core[S] with FP[S] = new CCASFixedPromiseLinking[S](ex, 1)
+  override def newC[S](ex: Executor): Core[S] with FP[S] = new CCASFixedPromiseLinking[S](ex, maxAggregatedCallbacks)
 
   override def getC(): Try[T] = getResultWithMVar()
 
@@ -62,55 +62,58 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
         executeAllCallbacksWithParent(v, right)
     }
 
-  // TODO check if result is Noop, too!
   // TODO Add @tailrec somehow with parent entry
   private def aggregateCallbacks(currentCallbacks: CallbackEntry,
                                  current: CallbackEntry,
                                  currentCounter: Int,
-                                 result: AggregatedCallback,
-                                 max: Int): (CallbackEntry, Int, AggregatedCallback) =
+                                 result: AggregatedCallback): (CallbackEntry, Int, AggregatedCallback) =
     currentCallbacks match {
       case LinkedCallbackEntry(c, prev) =>
-        if (currentCounter == max) {
-          aggregateCallbacks(prev,
-                             SingleCallbackEntry(c.asInstanceOf[Callback]),
-                             1,
-                             if (current eq Noop) { result } else { LinkedAggregate(current, result) },
-                             max)
+        if (currentCounter == maxAggregatedCallbacks) {
+          aggregateCallbacks(
+            prev,
+            SingleCallbackEntry(c.asInstanceOf[Callback]),
+            1,
+            if (current eq Noop) { result } else { if (result eq NoopAggregated) { SingleAggregate(current) } else { LinkedAggregate(current, result) } }
+          )
         } else {
           aggregateCallbacks(
             prev,
             if (current eq Noop) { SingleCallbackEntry(c.asInstanceOf[Callback]) } else { LinkedCallbackEntry(c.asInstanceOf[Callback], current) },
             currentCounter + 1,
-            result,
-            max
+            result
           )
         }
       case SingleCallbackEntry(c) =>
-        if (currentCounter == max) {
-          (SingleCallbackEntry(c.asInstanceOf[Callback]), 1, if (current eq Noop) { result } else { LinkedAggregate(current, result) })
+        if (currentCounter == maxAggregatedCallbacks) {
+          (SingleCallbackEntry(c.asInstanceOf[Callback]), 1, if (current eq Noop) { result } else {
+            if (result eq NoopAggregated) { SingleAggregate(current) } else { LinkedAggregate(current, result) }
+          })
         } else {
           (if (current eq Noop) { SingleCallbackEntry(c.asInstanceOf[Callback]) } else { LinkedCallbackEntry(c.asInstanceOf[Callback], current) },
            currentCounter + 1,
            result)
         }
-      case Noop => (current, currentCounter, result)
+      // TODO Should never occur here!
+      case Noop => throw new RuntimeException("Never pass Noop to aggregate callbacks!") //(current, currentCounter, result)
       case ParentCallbackEntry(left, right) =>
-        val (updatedCurrent, updatedCounter, updatedResult) = aggregateCallbacks(left, current, currentCounter, result, max)
-        aggregateCallbacks(right, updatedCurrent, updatedCounter, updatedResult, max)
+        val (updatedCurrent, updatedCounter, updatedResult) = aggregateCallbacks(left, current, currentCounter, result)
+        aggregateCallbacks(right, updatedCurrent, updatedCounter, updatedResult)
     }
 
   @tailrec @inline private def executeAggregated(v: Try[T], a: AggregatedCallback): Unit = a match {
-    case SingleAggregate(c) => executeAllCallbacksWithParent(v, c)
+    case SingleAggregate(c) => getExecutorC.execute(() => executeAllCallbacksWithParent(v, c))
     case LinkedAggregate(c, prev) =>
-      executeAllCallbacksWithParent(v, c)
+      getExecutorC.execute(() => executeAllCallbacksWithParent(v, c))
       executeAggregated(v, prev)
     case NoopAggregated =>
   }
 
   @inline private def aggregateAndExecuteAllCallbacks(v: Try[T], currentCallbacks: CallbackEntry) {
-    val (updatedCurrent, _, updatedResult) = aggregateCallbacks(currentCallbacks, Noop, 0, NoopAggregated, maxAggregatedCallbacks)
-    executeAggregated(v, LinkedAggregate(updatedCurrent, updatedResult)) // TODO Check for Noop
+    // TODO Can this return Noop?
+    val (updatedCurrent, _, updatedResult) = aggregateCallbacks(currentCallbacks, Noop, 0, NoopAggregated)
+    val aggregatedCallbacks = LinkedAggregate(updatedCurrent, updatedResult)
+    executeAggregated(v, aggregatedCallbacks)
   }
 
   /**
@@ -124,7 +127,9 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
     val result = callbackEntryAndSuccessfullyCompleted._1
     if (result) {
       val callbackEntry = callbackEntryAndSuccessfullyCompleted._2
-      aggregateAndExecuteAllCallbacks(v, callbackEntry)
+      if (callbackEntry ne Noop) {
+        aggregateAndExecuteAllCallbacks(v, callbackEntry)
+      }
     }
     result
   }
@@ -143,7 +148,7 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
       // Just replace the callback entry in the current link. Do not move any callbacks to target promises.
       case FixedStateLink(links, callbackEntry) =>
         if (!compareAndSet(s, FixedStateLink(links, LinkedCallbackEntry(c, callbackEntry)))) onCompleteInternal(c)
-      case FixStateLinkWithoutCallback(links) => if (!compareAndSet(s, FixedStateLink(links, SingleCallbackEntry(c)))) onCompleteInternal(c)
+      case FixedStateLinkWithoutCallback(links) => if (!compareAndSet(s, FixedStateLink(links, SingleCallbackEntry(c)))) onCompleteInternal(c)
     }
   }
 
@@ -157,17 +162,17 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
       val s = o.get
       s match {
         case FixedStateTry(x) => tryComplete(x)
-        case FixedStateCallbackEntry(x) =>
-          if (x eq Noop) {
-            // Replace the callback list by a link to this which still holds the callback.
-            if (!o.compareAndSet(s, FixStateLinkWithoutCallback[T](Set(this)))) tryCompleteWithInternal(other)
+        case FixedStateCallbackEntry(c) =>
+          if (c eq Noop) {
+            // Replace the callback list by a link to this which has no callback.
+            if (!o.compareAndSet(s, FixedStateLinkWithoutCallback[T](Set(this)))) tryCompleteWithInternal(other)
           } else {
             // Replace the callback list by a link to this which still holds the callback.
-            if (!o.compareAndSet(s, FixedStateLink[T](Set(this), x))) tryCompleteWithInternal(other)
+            if (!o.compareAndSet(s, FixedStateLink[T](Set(this), c))) tryCompleteWithInternal(other)
           }
-        // Add this as additional target for the link.
-        case FixedStateLink(links, c)           => if (!o.compareAndSet(s, FixedStateLink[T](links + this, c))) tryCompleteWithInternal(other)
-        case FixStateLinkWithoutCallback(links) => if (!o.compareAndSet(s, FixStateLinkWithoutCallback[T](links + this))) tryCompleteWithInternal(other)
+        // Add this as additional link.
+        case FixedStateLink(links, c)             => if (!o.compareAndSet(s, FixedStateLink[T](links + this, c))) tryCompleteWithInternal(other)
+        case FixedStateLinkWithoutCallback(links) => if (!o.compareAndSet(s, FixedStateLinkWithoutCallback[T](links + this))) tryCompleteWithInternal(other)
       }
     } else {
       super.tryCompleteWith(other)
@@ -187,22 +192,22 @@ class CCASFixedPromiseLinking[T](ex: Executor, maxAggregatedCallbacks: Int)
     */
   private[pepm19] def isLinkTo(primCASPromiseLinking: Self): Boolean =
     get match {
-      case FixedStateLink(links, _)           => links.contains(primCASPromiseLinking)
-      case FixStateLinkWithoutCallback(links) => links.contains(primCASPromiseLinking)
-      case _                                  => false
+      case FixedStateLink(links, _)             => links.contains(primCASPromiseLinking)
+      case FixedStateLinkWithoutCallback(links) => links.contains(primCASPromiseLinking)
+      case _                                    => false
     }
 
   private[pepm19] def isLink(): Boolean =
     get match {
-      case FixedStateLink(_, _) | FixStateLinkWithoutCallback(_) => true
-      case _                                                     => false
+      case FixedStateLink(_, _) | FixedStateLinkWithoutCallback(_) => true
+      case _                                                       => false
     }
 
   private[pepm19] def getLinkTo(): Set[Self] =
     get match {
-      case FixedStateLink(links, _)           => links
-      case FixStateLinkWithoutCallback(links) => links
-      case _                                  => throw new RuntimeException("Invalid usage.")
+      case FixedStateLink(links, _)             => links
+      case FixedStateLinkWithoutCallback(links) => links
+      case _                                    => throw new RuntimeException("Invalid usage.")
     }
 
   private[pepm19] def isListOfCallbacks(): Boolean = get match {
@@ -239,7 +244,7 @@ object CCASFixedPromiseLinking {
         }
       case FixedStateCallbackEntry(c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
-          val updatedCurrentCallbackEntry = ParentCallbackEntry(c, currentCallbackEntry)
+          val updatedCurrentCallbackEntry = if (currentCallbackEntry ne Noop) { ParentCallbackEntry(c, currentCallbackEntry) } else { c }
           // The first successful compareAndSet must be the first promise, therefore return true from here!
           if (rest.nonEmpty) { tryCompleteAndGetEachCallback(rest.head, updatedCurrentCallbackEntry, v, rest.tail, true) } else {
             (true, updatedCurrentCallbackEntry)
@@ -247,7 +252,7 @@ object CCASFixedPromiseLinking {
         } else { tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst) }
       case FixedStateLink(links, c) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
-          val updatedCurrentCallbackEntry = ParentCallbackEntry(c, currentCallbackEntry)
+          val updatedCurrentCallbackEntry = if (currentCallbackEntry ne Noop) { ParentCallbackEntry(c, currentCallbackEntry) } else { c }
           val updatedRest = rest ++ links
           /*
            * Updated rest should never be empty since links should never be empty-
@@ -257,7 +262,7 @@ object CCASFixedPromiseLinking {
         } else {
           tryCompleteAndGetEachCallback(current, currentCallbackEntry, v, rest, successfullyCompletedFirst)
         }
-      case FixStateLinkWithoutCallback(links) =>
+      case FixedStateLinkWithoutCallback(links) =>
         if (current.compareAndSet(s, FixedStateTry(v))) {
           val updatedRest = rest ++ links
           /*

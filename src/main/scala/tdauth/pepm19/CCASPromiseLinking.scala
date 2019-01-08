@@ -88,7 +88,7 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     * Creates a link from other to this/the root of this and moves all callbacks to this.
     * The callback list of other is replaced by a link.
     */
-  @inline @tailrec private def tryCompleteWithInternal(other: FP[T]): Unit = {
+  @inline @tailrec private def tryCompleteWithInternal(other: FP[T]): Unit =
     if (other.isInstanceOf[Self]) {
       val o = other.asInstanceOf[Self]
       val s = o.get
@@ -104,7 +104,6 @@ class CCASPromiseLinking[T](ex: Executor) extends AtomicReference[LinkedState](L
     } else {
       other.onComplete(tryComplete)
     }
-  }
 
   private def prependCallbacks(callbacks: CallbackEntry, prependedCallbacks: CallbackEntry): CallbackEntry =
     if (callbacks ne Noop) { ParentCallbackEntry(prependedCallbacks, callbacks) } else { prependedCallbacks }

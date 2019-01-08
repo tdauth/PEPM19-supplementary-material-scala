@@ -2,8 +2,8 @@ package tdauth.pepm19.benchmarks
 
 import java.io.{File, FileWriter}
 import java.util.Locale
+import java.util.concurrent._
 import java.util.concurrent.locks.ReentrantLock
-import java.util.concurrent.{Executor, ExecutorService, Executors, ThreadFactory}
 
 import tdauth.pepm19.{CSTM, _}
 
@@ -381,17 +381,14 @@ object Benchmarks extends App {
 
   private def perf4TwitterUtil(n: Int, m: Int, executorThreads: Int) {
     val counter = new Synchronizer(n * m)
+    val registerCounter = new Synchronizer(n)
     val ex = getTwitterUtilExecutor(executorThreads, "perf 5 (n: %d,  executorThreads: %d)".format(n, executorThreads))
     val successfulPromise = com.twitter.util.Promise[Int]
     successfulPromise.setValue(10)
     val finalPromise = com.twitter.util.Promise[Int]
 
     def linkPromises(n: Int): com.twitter.util.Future[Int] = {
-      if (n == 1) {
-        /*
-         * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
-         */
-        m times finalPromise.respond(_ => ex({ counter.increment() }))
+      if (n == 0) {
         finalPromise
       } else {
         /*
@@ -402,11 +399,13 @@ object Benchmarks extends App {
          * We cannot use respond for Twitter Util since there is no way of specifying the executor for the callback.
          */
         m times r.respond(_ => ex({ counter.increment() }))
+        registerCounter.increment()
         r
       }
     }
 
     linkPromises(n)
+    registerCounter.await()
     finalPromise.setValue(1)
     counter.await()
   }
@@ -484,23 +483,25 @@ object Benchmarks extends App {
 
   private def perf4ScalaFP(n: Int, m: Int, executorThreads: Int) {
     val counter = new Synchronizer(n * m)
+    val registerCounter = new Synchronizer(n)
     val ex = getScalaFPExecutor(executorThreads, "perf 5 (n: %d,  executorThreads: %d)".format(n, executorThreads))
     val executionContext = ex._2
     val successfulPromise = scala.concurrent.Future.successful(10)
     val finalPromise = scala.concurrent.Promise[Int]
 
     def linkPromises(n: Int): scala.concurrent.Future[Int] = {
-      if (n == 1) {
-        m times finalPromise.future.onComplete(_ => counter.increment())(executionContext)
+      if (n == 0) {
         finalPromise.future
       } else {
         val r = successfulPromise.transformWith(_ => linkPromises(n - 1))(executionContext)
         m times r.onComplete(_ => counter.increment())(executionContext)
+        registerCounter.increment()
         r
       }
     }
 
     linkPromises(n)
+    registerCounter.await()
     finalPromise.trySuccess(1)
     counter.await()
   }
@@ -570,26 +571,34 @@ object Benchmarks extends App {
   }
 
   private def perf4Prim(n: Int, m: Int, executorThreads: Int, f: (Executor, Int) => FP[Int]) {
-    val k = m / executorThreads
+    val k = n * m / executorThreads
     val counter = new Synchronizer(n * m)
+    val registerCounter = new Synchronizer(n)
     val ex = getPrimExecutor(executorThreads, "perf 5 (n: %d,  executorThreads: %d)".format(n, executorThreads))
     val successfulPromise = f(ex, k)
     successfulPromise.trySuccess(10)
     val finalPromise = f(ex, k)
 
-    def linkPromises(n: Int): FP[Int] = {
-      if (n == 1) {
-        m times finalPromise.onComplete(_ => counter.increment())
+    def linkPromises(i: Int): FP[Int] = {
+      if (i == 0) {
         finalPromise
       } else {
-        val r = successfulPromise.transformWith(_ => linkPromises(n - 1))
+        val r = successfulPromise.transformWith(_ => linkPromises(i - 1))
         m times r.onComplete(_ => counter.increment())
+        registerCounter.increment()
         r
       }
     }
 
     linkPromises(n)
+    registerCounter.await()
     finalPromise.trySuccess(1)
     counter.await()
+    /*
+     * Print information to assure that for fixed promise linking only n + executorThreads taskas are submitted.
+     */
+    val convertedExecutor = ex.asInstanceOf[ThreadPoolExecutor]
+    println(s"Completed tasks: " + convertedExecutor.getCompletedTaskCount())
+    println(s"Callbacks per task: $k")
   }
 }
