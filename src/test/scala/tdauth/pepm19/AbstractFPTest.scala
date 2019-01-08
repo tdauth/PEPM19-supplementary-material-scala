@@ -16,11 +16,20 @@ abstract class AbstractFPTest(checkExactCallbackOrder: Boolean) extends FlatSpec
   /**
     * Detect blocking combinators by simply using the current thread.
     */
-  private class CurrentThreadExecutor extends Executor { override def execute(r: Runnable): Unit = { r.run() } }
+  class CurrentThreadExecutor extends Executor {
+    var counter = 0
+
+    def getCounter = counter
+
+    override def execute(r: Runnable): Unit = {
+      r.run()
+      counter += 1
+    }
+  }
   private val executor = new CurrentThreadExecutor
 
   def getFP: FP[Int]
-  def getExecutor: Executor = executor
+  def getExecutor: CurrentThreadExecutor = executor
 
   // Basic future methods:
   "get " should "return a successful value" in {

@@ -172,4 +172,50 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
     // only the callbacks of p and f are called
     counter.get() shouldEqual 2
   }
+
+  it should "create 1 task for 200 callbacks" in {
+    val ex = new CurrentThreadExecutor
+    val p = new CCASFixedPromiseLinking[Int](ex, 1)
+    val f = new CCASFixedPromiseLinking[Int](ex, 200)
+    p tryCompleteWith f
+
+    f.isLinkTo(p) shouldEqual true
+    val counter = new AtomicInteger(0)
+
+    1 to 100 foreach { _ =>
+      f.onCompleteC(_ => counter.incrementAndGet())
+    }
+    1 to 100 foreach { _ =>
+      p.onCompleteC(_ => counter.incrementAndGet())
+    }
+    f.trySuccess(1)
+
+    f.getC() shouldEqual Success(1)
+    p.getC() shouldEqual Success(1)
+    counter.get() shouldEqual 200
+    ex.getCounter shouldEqual 3 // 1 task for all the callbacks + 2 tasks for 2 getC calls.
+  }
+
+  it should "create 200 tasks for 200 callbacks" in {
+    val ex = new CurrentThreadExecutor
+    val p = new CCASFixedPromiseLinking[Int](ex, 1)
+    val f = new CCASFixedPromiseLinking[Int](ex, 1)
+    p tryCompleteWith f
+
+    f.isLinkTo(p) shouldEqual true
+    val counter = new AtomicInteger(0)
+
+    1 to 100 foreach { _ =>
+      f.onCompleteC(_ => counter.incrementAndGet())
+    }
+    1 to 100 foreach { _ =>
+      p.onCompleteC(_ => counter.incrementAndGet())
+    }
+    f.trySuccess(1)
+
+    f.getC() shouldEqual Success(1)
+    p.getC() shouldEqual Success(1)
+    counter.get() shouldEqual 200
+    ex.getCounter shouldEqual 202 // 200 tasks for all the callbacks + 2 tasks for 2 getC calls.
+  }
 }
