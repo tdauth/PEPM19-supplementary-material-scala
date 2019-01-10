@@ -8,8 +8,8 @@ import scala.util.Success
 class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
   type FPLinkingType = CCASFixedPromiseLinking[Int]
 
-  def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor, 1)
-  override def getFP: FP[Int] = new FPLinkingType(getExecutor, 1)
+  def getFPPromiseLinking: FPLinkingType = new FPLinkingType(getExecutor, true, 1)
+  override def getFP: FP[Int] = new FPLinkingType(getExecutor, true, 1)
 
   "transformWith with a link" should "create a new successful future" in {
     val p = getFP
@@ -26,22 +26,20 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
     val v = new AtomicBoolean(false)
     val p0 = getFPPromiseLinking
 
-    p0.isLink() shouldEqual false
+    p0.isLink() shouldEqual true
     p0.isLinkTo(p0) shouldEqual false
-    p0.isListOfCallbacks() shouldEqual true
     p0.getNumberOfCallbacks() shouldEqual 0
 
     val p1 = getFPPromiseLinking
     p1.onComplete(_ => v.set(true))
 
-    p1.isLink() shouldEqual false
+    p1.isLink() shouldEqual true
     p1.isLinkTo(p0) shouldEqual false
-    p1.isListOfCallbacks() shouldEqual true
     p1.getNumberOfCallbacks() shouldEqual 1
 
     p0.tryCompleteWith(p1)
 
-    p0.isListOfCallbacks() shouldEqual true
+    p0.isLink() shouldEqual true
     // In this solution the callbacks are not moved to p0.
     p0.getNumberOfCallbacks() shouldEqual 0
     p1.getNumberOfCallbacks() shouldEqual 1
@@ -63,7 +61,7 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
     p0.tryCompleteWith(p1)
     p1.tryCompleteWith(p2)
 
-    p0.isListOfCallbacks() shouldEqual true
+    p0.isLink() shouldEqual true
     // the callbacks are not moved to p0
     p0.getNumberOfCallbacks() shouldEqual 0
     p1.getNumberOfCallbacks() shouldEqual 1
@@ -105,7 +103,7 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
     val finalLink = createChainElement(n, p)
 
     links.size shouldEqual n
-    p.isListOfCallbacks() shouldEqual true
+    p.isLink() shouldEqual true
     // In this solution the callbacks are not moved to p.
     p.getNumberOfCallbacks() shouldEqual 0
     finalLink.isLink() shouldEqual true
@@ -138,7 +136,6 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
         // In this solution all links will get the result value.
         l.isReady shouldEqual true
         l.isLink() shouldEqual false
-        l.isListOfCallbacks() shouldEqual false
         l.getP shouldEqual Success(10)
         if (links.size > 1) assertCompletedChain(links.tail)
       }
@@ -158,7 +155,7 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
     p.tryCompleteWith(f)
     p.tryCompleteWith(g)
 
-    p.isListOfCallbacks() shouldEqual true
+    p.isLink() shouldEqual true
     // In this solution the callbacks are not moved to p.
     p.getNumberOfCallbacks() shouldEqual 1
     f.isLinkTo(p) shouldEqual true
@@ -175,8 +172,8 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
 
   it should "create 1 task for 200 callbacks" in {
     val ex = new CurrentThreadExecutor
-    val p = new CCASFixedPromiseLinking[Int](ex, 1)
-    val f = new CCASFixedPromiseLinking[Int](ex, 200)
+    val p = new CCASFixedPromiseLinking[Int](ex, true, 1)
+    val f = new CCASFixedPromiseLinking[Int](ex, true, 200)
     p tryCompleteWith f
 
     f.isLinkTo(p) shouldEqual true
@@ -198,8 +195,8 @@ class CCASFixedPromiseLinkingTest extends AbstractFPTest(false) {
 
   it should "create 200 tasks for 200 callbacks" in {
     val ex = new CurrentThreadExecutor
-    val p = new CCASFixedPromiseLinking[Int](ex, 1)
-    val f = new CCASFixedPromiseLinking[Int](ex, 1)
+    val p = new CCASFixedPromiseLinking[Int](ex, true, 1)
+    val f = new CCASFixedPromiseLinking[Int](ex, true, 1)
     p tryCompleteWith f
 
     f.isLinkTo(p) shouldEqual true

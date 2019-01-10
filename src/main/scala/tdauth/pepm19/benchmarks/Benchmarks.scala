@@ -34,6 +34,8 @@ object Benchmarks extends App {
   val PrimCASPromiseLinkingPlotFileSuffix = "caspromiselinking"
   val PrimCASFixedPromiseLinkingImplementationName = "Prim CAS Fixed Promise Linking"
   val PrimCASFixedPromiseLinkingPlotFileSuffix = "casfixedpromiselinking"
+  val PrimCASFixedPromiseLinkingNoAggregateImplementationName = "Prim CAS Fixed Promise Linking without Aggregation"
+  val PrimCASFixedPromiseLinkingNoAggregatePlotFileSuffix = "casfixedpromiselinkingnoaggregate"
   val ImplementationNames =
     Vector(
       TwitterImplementationName,
@@ -42,7 +44,8 @@ object Benchmarks extends App {
       PrimMVarImplementationName,
       PrimSTMImplementationName,
       PrimCASPromiseLinkingImplementationName,
-      PrimCASFixedPromiseLinkingImplementationName
+      PrimCASFixedPromiseLinkingImplementationName,
+      PrimCASFixedPromiseLinkingNoAggregateImplementationName
     )
   val PlotFileSuffixes = Vector(
     TwitterPlotFileSuffix,
@@ -51,7 +54,8 @@ object Benchmarks extends App {
     PrimMVarPlotFileSuffix,
     PrimSTMPlotFileSuffix,
     PrimCASPromiseLinkingPlotFileSuffix,
-    PrimCASFixedPromiseLinkingPlotFileSuffix
+    PrimCASFixedPromiseLinkingPlotFileSuffix,
+    PrimCASFixedPromiseLinkingNoAggregatePlotFileSuffix
   )
   val Iterations = 10
 
@@ -120,6 +124,8 @@ object Benchmarks extends App {
   private class TestPrimCASPromiseLinking(t: TestFunction) extends Test(PrimCASPromiseLinkingImplementationName, PrimCASPromiseLinkingPlotFileSuffix, t)
   private class TestPrimCASFixedPromiseLinking(t: TestFunction)
       extends Test(PrimCASFixedPromiseLinkingImplementationName, PrimCASFixedPromiseLinkingPlotFileSuffix, t)
+  private class TestPrimCASFixedPromiseLinkingNoAggregate(t: TestFunction)
+      extends Test(PrimCASFixedPromiseLinkingNoAggregateImplementationName, PrimCASFixedPromiseLinkingNoAggregatePlotFileSuffix, t)
 
   private def execTest(t: TestFunction): Double = {
     System.gc()
@@ -203,7 +209,12 @@ object Benchmarks extends App {
       testNumber,
       executorThreads,
       new TestPrimCASFixedPromiseLinking(
-        () => perf4Prim(n, m, executorThreads, (ex, maxAggregatedCallbacks) => new CCASFixedPromiseLinking[Int](ex, maxAggregatedCallbacks)))
+        () => perf4Prim(n, m, executorThreads, (ex, maxAggregatedCallbacks) => new CCASFixedPromiseLinking[Int](ex, true, maxAggregatedCallbacks)))
+    )
+    runTest(
+      testNumber,
+      executorThreads,
+      new TestPrimCASFixedPromiseLinkingNoAggregate(() => perf4Prim(n, m, executorThreads, (ex, _) => new CCASFixedPromiseLinking[Int](ex, false, 0)))
     )
   }
 
@@ -408,6 +419,11 @@ object Benchmarks extends App {
     registerCounter.await()
     finalPromise.setValue(1)
     counter.await()
+    /*
+     * Print information:
+     */
+    val convertedExecutor = ex.executor.asInstanceOf[ThreadPoolExecutor]
+    println(s"Completed tasks: " + convertedExecutor.getCompletedTaskCount())
   }
 
   private def perf1ScalaFP(n: Int, m: Int, k: Int, executorThreads: Int) {
@@ -486,6 +502,8 @@ object Benchmarks extends App {
     val registerCounter = new Synchronizer(n)
     val ex = getScalaFPExecutor(executorThreads, "perf 5 (n: %d,  executorThreads: %d)".format(n, executorThreads))
     val executionContext = ex._2
+    val inlineExecutor = new CurrentThreadExecutor
+    val inlineExecutionContext = ExecutionContext.fromExecutor(inlineExecutor)
     val successfulPromise = scala.concurrent.Future.successful(10)
     val finalPromise = scala.concurrent.Promise[Int]
 
@@ -493,7 +511,7 @@ object Benchmarks extends App {
       if (n == 0) {
         finalPromise.future
       } else {
-        val r = successfulPromise.transformWith(_ => linkPromises(n - 1))(executionContext)
+        val r = successfulPromise.transformWith(_ => linkPromises(n - 1))(inlineExecutionContext)
         m times r.onComplete(_ => counter.increment())(executionContext)
         registerCounter.increment()
         r
@@ -504,6 +522,12 @@ object Benchmarks extends App {
     registerCounter.await()
     finalPromise.trySuccess(1)
     counter.await()
+    /*
+     * Print information:
+     */
+    val convertedExecutor = ex._1.asInstanceOf[ThreadPoolExecutor]
+    println(s"Completed tasks: " + convertedExecutor.getCompletedTaskCount())
+    println(s"Completed inline tasks: " + inlineExecutor.getCounter)
   }
 
   private def perf1Prim(n: Int, m: Int, k: Int, executorThreads: Int, f: Executor => Core[Int]) {
@@ -573,9 +597,9 @@ object Benchmarks extends App {
   private def perf4Prim(n: Int, m: Int, executorThreads: Int, f: (Executor, Int) => FP[Int]) {
     val k = n * m / executorThreads
     val counter = new Synchronizer(n * m)
-    val registerCounter = new Synchronizer(n)
     val ex = getPrimExecutor(executorThreads, "perf 5 (n: %d,  executorThreads: %d)".format(n, executorThreads))
-    val successfulPromise = f(ex, k)
+    val inlineExecutor = new CurrentThreadExecutor
+    val successfulPromise = f(inlineExecutor, k)
     successfulPromise.trySuccess(10)
     val finalPromise = f(ex, k)
 
@@ -585,20 +609,19 @@ object Benchmarks extends App {
       } else {
         val r = successfulPromise.transformWith(_ => linkPromises(i - 1))
         m times r.onComplete(_ => counter.increment())
-        registerCounter.increment()
         r
       }
     }
 
     linkPromises(n)
-    registerCounter.await()
     finalPromise.trySuccess(1)
     counter.await()
     /*
-     * Print information to assure that for fixed promise linking only n + executorThreads taskas are submitted.
+     * Print information to assure that for fixed promise linking only n + executorThreads tasks are submitted.
      */
     val convertedExecutor = ex.asInstanceOf[ThreadPoolExecutor]
     println(s"Completed tasks: " + convertedExecutor.getCompletedTaskCount())
+    println(s"Completed inline tasks: " + inlineExecutor.getCounter)
     println(s"Callbacks per task: $k")
   }
 }

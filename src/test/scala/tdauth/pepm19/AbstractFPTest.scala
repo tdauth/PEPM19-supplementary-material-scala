@@ -13,19 +13,6 @@ abstract class AbstractFPTest(checkExactCallbackOrder: Boolean) extends FlatSpec
   val FirstNumberTimes10 = 100
   val SecondNumber = 11
 
-  /**
-    * Detect blocking combinators by simply using the current thread.
-    */
-  class CurrentThreadExecutor extends Executor {
-    var counter = 0
-
-    def getCounter = counter
-
-    override def execute(r: Runnable): Unit = {
-      r.run()
-      counter += 1
-    }
-  }
   private val executor = new CurrentThreadExecutor
 
   def getFP: FP[Int]

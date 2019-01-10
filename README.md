@@ -1,6 +1,6 @@
 # PEPM19-supplementary-material-scala
 
-Scala implementation of <https://github.com/sulzmann/PEPM19-supplementary-material>.
+Scala implementation of <https://github.com/sulzmann/PEPM19-supplementary-material> plus program transformations.
 
 ## Automatic Build with TravisCI
 [![Build Status](https://travis-ci.org/tdauth/PEPM19-supplementary-material-scala.svg?branch=master)](https://travis-ci.org/tdauth/PEPM19-supplementary-material-scala)
